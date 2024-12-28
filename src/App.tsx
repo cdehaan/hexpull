@@ -8,7 +8,7 @@ const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
 const COLUMN_WIDTH = HEX_WIDTH * 0.75; // Width of a column
 const colors = ['red', 'blue', 'gray', 'yellow', 'purple'];
 
-type HexLocationType = { x: number; y: number; color: number }; // To represent logical location of a hex
+type HexLocationType = { x: number | null; y: number | null; color: number; removedIndex: number | null };
 
 const HexGrid: React.FC = () => {
   const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
@@ -16,6 +16,7 @@ const HexGrid: React.FC = () => {
       x: i % GRID_WIDTH,
       y: Math.floor(i / GRID_WIDTH),
       color: Math.floor(Math.random() * colors.length),
+      removedIndex: null,
     }))
   );
 
@@ -25,7 +26,7 @@ const HexGrid: React.FC = () => {
 
   const moveHex = (index: number, newX: number, newY: number) => {
     setHexLocations((prev) =>
-      prev.map((loc, i) => (i === index ? { x: newX, y: newY, color: loc.color } : loc))
+      prev.map((loc, i) => (i === index ? { ...loc, x: newX, y: newY } : loc))
     );
   };
 
@@ -48,23 +49,48 @@ const HexGrid: React.FC = () => {
   };
 
   const handleHexClick = (x: number, y: number, pullDirection: number, clockwise: boolean) => {
+    const clickedIndex = findHexIndex(x, y);
+    if (clickedIndex === null || hexLocations[clickedIndex].removedIndex !== null) return;
+
+    setHexLocations((prev) => {
+      const updated = [...prev];
+      updated[clickedIndex] = {
+        ...updated[clickedIndex],
+        x: null,
+        y: null,
+        removedIndex: prev.filter((loc) => loc.removedIndex !== null).length,
+      };
+      return updated;
+    });
+
     let length = 1;
     let steps = 0;
     let direction = pullDirection;
     let grow = false;
     let currentX = x;
     let currentY = y;
+    let lastIndex = clickedIndex;
 
     while (true) {
       const neighbor = getNeighborCoords(currentX, currentY, direction);
       if (!neighbor) break;
 
       const neighborIndex = findHexIndex(neighbor.x, neighbor.y);
-      if (neighborIndex === null) break;
+      if (neighborIndex === null) {
+        const newTile: HexLocationType = {
+          x: currentX,
+          y: currentY,
+          color: Math.floor(Math.random() * colors.length),
+          removedIndex: null,
+        };
+        setHexLocations((prev) => [...prev, newTile]);
+        break;
+      }
 
       moveHex(neighborIndex, currentX, currentY);
       currentX = neighbor.x;
       currentY = neighbor.y;
+      lastIndex = neighborIndex;
       steps++;
 
       if (steps >= length) {
@@ -77,10 +103,18 @@ const HexGrid: React.FC = () => {
   };
 
   useEffect(() => {
+    const removedTiles = hexLocations
+      .filter((tile) => tile.removedIndex !== null)
+      .sort((a, b) => (a.removedIndex! - b.removedIndex!));
     hexLocations.forEach((hex, index) => {
       const hexRef = hexRefs.current[index];
       if (hexRef) {
-        hexRef.style.transform = `translate(${hex.x * COLUMN_WIDTH + hex.x * 2}px, ${hex.y * HEX_HEIGHT + (hex.x % 2 === 0 ? HEX_HEIGHT / 2 : 0) + hex.y * 2}px)`;
+        if (hex.x !== null && hex.y !== null) {
+          hexRef.style.transform = `translate(${hex.x * COLUMN_WIDTH + hex.x * 2 + HEX_WIDTH * 2}px, ${hex.y * HEX_HEIGHT + (hex.x % 2 === 0 ? HEX_HEIGHT / 2 : 0) + hex.y * 2}px)`;
+        } else {
+          hexRef.style.transform = `translate(${HEX_WIDTH / 2}px, ${removedTiles.findIndex((tile) => tile.removedIndex === hex.removedIndex) * HEX_HEIGHT * 0.67}px)`;
+          hexRef.style.zIndex = hex.removedIndex?.toString() || '0';
+        }
       }
     });
   }, [hexLocations]);
@@ -101,8 +135,9 @@ const HexGrid: React.FC = () => {
             ...hexTileStyle,
             position: 'absolute',
             backgroundColor: colors[hex.color],
+            
           }}
-          onClick={() => handleHexClick(hex.x, hex.y, 2, true)}
+          onClick={() => handleHexClick(hex.x!, hex.y!, 2, true)}
         >
           {hex.x}, {hex.y}
         </div>
