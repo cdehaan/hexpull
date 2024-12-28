@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import DirectionSelector from './components/DirectionSelector';
 
-const GRID_WIDTH = 20; // Number of columns
-const GRID_HEIGHT = 20; // Number of rows
+const GRID_WIDTH = 7; // Number of columns
+const GRID_HEIGHT = 12; // Number of rows
 const HEX_HEIGHT = 40;
 const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
 const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
@@ -11,7 +12,10 @@ const colors = ['red', 'blue', 'gray', 'yellow', 'purple'];
 type HexLocationType = { x: number | null; y: number | null; color: number; removedIndex: number | null };
 
 const HexGrid: React.FC = () => {
-  const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
+  const [initialPullDirection, setInitialPullDirection] = useState(1);
+  const [isClockwise, setIsClockwise] = useState(true);
+
+const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
     Array.from({ length: GRID_WIDTH * GRID_HEIGHT }, (_, i) => ({
       x: i % GRID_WIDTH,
       y: Math.floor(i / GRID_WIDTH),
@@ -48,7 +52,7 @@ const HexGrid: React.FC = () => {
     }
   };
 
-  const handleHexClick = (x: number, y: number, pullDirection: number, clockwise: boolean) => {
+  const handleHexClick = (x: number, y: number, pullDirection: number = initialPullDirection) => {
     const clickedIndex = findHexIndex(x, y);
     if (clickedIndex === null || hexLocations[clickedIndex].removedIndex !== null) return;
 
@@ -69,7 +73,7 @@ const HexGrid: React.FC = () => {
     let grow = false;
     let currentX = x;
     let currentY = y;
-    let lastIndex = clickedIndex;
+    //let lastIndex = clickedIndex;
 
     while (true) {
       const neighbor = getNeighborCoords(currentX, currentY, direction);
@@ -90,14 +94,14 @@ const HexGrid: React.FC = () => {
       moveHex(neighborIndex, currentX, currentY);
       currentX = neighbor.x;
       currentY = neighbor.y;
-      lastIndex = neighborIndex;
+      //lastIndex = neighborIndex;
       steps++;
 
       if (steps >= length) {
         steps = 0;
         if (grow) length++;
         grow = !grow;
-        direction = clockwise ? (direction % 6) + 1 : (direction - 2 + 6) % 6 + 1;
+        direction = isClockwise ? (direction % 6) + 1 : (direction - 2 + 6) % 6 + 1;
       }
     }
   };
@@ -110,9 +114,9 @@ const HexGrid: React.FC = () => {
       const hexRef = hexRefs.current[index];
       if (hexRef) {
         if (hex.x !== null && hex.y !== null) {
-          hexRef.style.transform = `translate(${hex.x * COLUMN_WIDTH + hex.x * 2 + HEX_WIDTH * 2}px, ${hex.y * HEX_HEIGHT + (hex.x % 2 === 0 ? HEX_HEIGHT / 2 : 0) + hex.y * 2}px)`;
+          hexRef.style.transform = `translate(${hex.x * COLUMN_WIDTH + hex.x * 2 + HEX_WIDTH * 1}px, ${hex.y * HEX_HEIGHT + (hex.x % 2 === 0 ? HEX_HEIGHT / 2 : 0) + hex.y * 2}px)`;
         } else {
-          hexRef.style.transform = `translate(${HEX_WIDTH / 2}px, ${removedTiles.findIndex((tile) => tile.removedIndex === hex.removedIndex) * HEX_HEIGHT * 0.67}px)`;
+          hexRef.style.transform = `translate(${0}px, ${removedTiles.findIndex((tile) => tile.removedIndex === hex.removedIndex) * HEX_HEIGHT * 0.67}px)`;
           hexRef.style.zIndex = hex.removedIndex?.toString() || '0';
         }
       }
@@ -120,29 +124,29 @@ const HexGrid: React.FC = () => {
   }, [hexLocations]);
 
   return (
-    <div className="hex-grid" style={{ position: 'relative', margin: '1rem' }}>
-      <div style={{ marginBottom: '1rem' }}>
-        <button onClick={() => handleHexClick(10, 10, 2, true)}>
-          Trigger Hex Movement
-        </button>
+    <>
+      <div style={{ minHeight: '3rem' }}>
+        <DirectionSelector initialPullDirection={initialPullDirection} setInitialPullDirection={setInitialPullDirection} isClockwise={isClockwise} setIsClockwise={setIsClockwise} />
       </div>
-      {hexLocations.map((hex, index) => (
-        <div
-          key={index}
-          className="hex-tile"
-          ref={(el) => (hexRefs.current[index] = el)}
-          style={{
-            ...hexTileStyle,
-            position: 'absolute',
-            backgroundColor: colors[hex.color],
-            
-          }}
-          onClick={() => handleHexClick(hex.x!, hex.y!, 2, true)}
-        >
-          {hex.x}, {hex.y}
-        </div>
-      ))}
-    </div>
+      <div className="hex-grid" style={{ position: 'relative', margin: '1rem' }}>
+        {hexLocations.map((hex, index) => (
+          <div
+            key={index}
+            className="hex-tile"
+            ref={(el) => (hexRefs.current[index] = el)}
+            style={{
+              ...hexTileStyle,
+              position: 'absolute',
+              backgroundColor: colors[hex.color],
+              
+            }}
+            onClick={() => handleHexClick(hex.x!, hex.y!)}
+          >
+            {/*{hex.x}, {hex.y}*/}
+          </div>
+        ))}
+      </div>
+    </>
   );
 };
 
