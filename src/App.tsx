@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DirectionSelector from './components/DirectionSelector';
 
-const GRID_WIDTH = 7; // Number of columns
-const GRID_HEIGHT = 12; // Number of rows
+const NUMBER_OF_COLUMNS = 7;
+const NUMBER_OF_ROWS = 12;
 const HEX_HEIGHT = 40;
 const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
 const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
@@ -15,17 +15,17 @@ const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
   const [isClockwise, setIsClockwise] = useState(true);
 
-const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
-    Array.from({ length: GRID_WIDTH * GRID_HEIGHT }, (_, i) => ({
-      x: i % GRID_WIDTH,
-      y: Math.floor(i / GRID_WIDTH),
+  const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
+    Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, (_, i) => ({
+      x: i % NUMBER_OF_COLUMNS,
+      y: Math.floor(i / NUMBER_OF_COLUMNS),
       color: Math.floor(Math.random() * colors.length),
       removedIndex: null,
     }))
   );
 
-  const hexRefs = useRef<HTMLDivElement[] | null[]>(
-    Array.from({ length: GRID_WIDTH * GRID_HEIGHT }, () => null)
+  const hexRefs = useRef<SVGPolygonElement[] | null[]>(
+    Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
   );
 
   const moveHex = (index: number, newX: number, newY: number) => {
@@ -73,7 +73,6 @@ const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
     let grow = false;
     let currentX = x;
     let currentY = y;
-    //let lastIndex = clickedIndex;
 
     while (true) {
       const neighbor = getNeighborCoords(currentX, currentY, direction);
@@ -94,7 +93,6 @@ const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
       moveHex(neighborIndex, currentX, currentY);
       currentX = neighbor.x;
       currentY = neighbor.y;
-      //lastIndex = neighborIndex;
       steps++;
 
       if (steps >= length) {
@@ -114,53 +112,51 @@ const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
       const hexRef = hexRefs.current[index];
       if (hexRef) {
         if (hex.x !== null && hex.y !== null) {
-          hexRef.style.transform = `translate(${hex.x * COLUMN_WIDTH + hex.x * 2 + HEX_WIDTH * 1}px, ${hex.y * HEX_HEIGHT + (hex.x % 2 === 0 ? HEX_HEIGHT / 2 : 0) + hex.y * 2}px)`;
+          const xPos = hex.x * COLUMN_WIDTH + hex.x * 2 + HEX_WIDTH * 1;
+          const yPos = hex.y * HEX_HEIGHT + (hex.x % 2 === 0 ? HEX_HEIGHT / 2 : 0) + hex.y * 2;
+          hexRef.setAttribute('transform', `translate(${xPos}, ${yPos})`);
         } else {
-          hexRef.style.transform = `translate(${0}px, ${removedTiles.findIndex((tile) => tile.removedIndex === hex.removedIndex) * HEX_HEIGHT * 0.67}px)`;
-          hexRef.style.zIndex = hex.removedIndex?.toString() || '0';
+          const yOffset = removedTiles.findIndex((tile) => tile.removedIndex === hex.removedIndex) * HEX_HEIGHT * 0.67;
+          hexRef.setAttribute('transform', `translate(0, ${yOffset})`);
+          hexRef.setAttribute('z-index', hex.removedIndex?.toString() || '0');
         }
       }
     });
   }, [hexLocations]);
+
+  const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH + HEX_WIDTH * 0.25; // +2 is for the stack of used tiles on the right, 0.25 = some margin
+  const totalHeight = (1 + NUMBER_OF_ROWS) * HEX_HEIGHT + HEX_HEIGHT * 0.25; // +1 is for the stagger of tiles in a row, 0.25 = some margin
 
   return (
     <>
       <div style={{ minHeight: '3rem' }}>
         <DirectionSelector initialPullDirection={initialPullDirection} setInitialPullDirection={setInitialPullDirection} isClockwise={isClockwise} setIsClockwise={setIsClockwise} />
       </div>
-      <div className="hex-grid" style={{ position: 'relative', margin: '1rem' }}>
+      <svg
+        className="hex-grid"
+        width={totalWidth}
+        height={totalHeight}
+        viewBox={`0 0 ${totalWidth} ${totalHeight}`}
+        style={{ position: 'relative', margin: '1rem' }}
+      >
         {hexLocations.map((hex, index) => (
-          <div
+          <polygon
             key={index}
-            className="hex-tile"
             ref={(el) => (hexRefs.current[index] = el)}
+            points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
             style={{
-              ...hexTileStyle,
-              position: 'absolute',
-              backgroundColor: colors[hex.color],
-              
+              fill: colors[hex.color],
+              stroke: 'black',
+              strokeWidth: '1px',
+              cursor: 'pointer',
+              transition: 'transform 0.3s ease',
             }}
             onClick={() => handleHexClick(hex.x!, hex.y!)}
-          >
-            {/*{hex.x}, {hex.y}*/}
-          </div>
+          />
         ))}
-      </div>
+      </svg>
     </>
   );
 };
 
 export default HexGrid;
-
-const hexTileStyle = {
-  width: `${HEX_HEIGHT * HEX_RATIO}px`,
-  height: `${HEX_HEIGHT}px`,
-  color: 'black',
-  fontSize: '0.8rem',
-  clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  border: '0px solid black',
-  transition: 'transform 0.3s ease',
-};
