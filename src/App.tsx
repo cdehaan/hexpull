@@ -9,37 +9,37 @@ const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
 const COLUMN_WIDTH = HEX_WIDTH * 0.75; // Width of a column
 const colors = ['red', 'blue', 'gray', 'yellow', 'purple'];
 
-type HexLocationType = { x: number | null; y: number | null; color: number; removedIndex: number | null; index: number, line: boolean, loop: boolean, core: boolean };
+type HexType = {  index: number; x: number | null; y: number | null; color: number; removedIndex: number | null; };
+type HexPatternsType = { index: number; line: boolean; loop: boolean; core: boolean };
 
 const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
   const [isClockwise, setIsClockwise] = useState(true);
 
-  const [hexLocations, setHexLocations] = useState<HexLocationType[]>(
+  const [hexes, setHexes] = useState<HexType[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, (_, i) => ({
       index: i,
       x: i % NUMBER_OF_COLUMNS,
       y: Math.floor(i / NUMBER_OF_COLUMNS),
       color: Math.floor(Math.random() * colors.length),
       removedIndex: null,
-      line: false,
-      loop: false,
-      core: false,
     }))
   );
+
+  const [hexPatterns, setHexPatterns] = useState<HexPatternsType[]>([]);
 
   const hexRefs = useRef<SVGPolygonElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
   );
 
   const moveHex = (index: number, newX: number, newY: number) => {
-    setHexLocations((prev) =>
+    setHexes((prev) =>
       prev.map((loc) => (loc.index === index ? { ...loc, x: newX, y: newY } : loc))
     );
   };
 
   const findHexIndex = (x: number, y: number): number | null => {
-    const index = hexLocations.findIndex((loc) => loc.x === x && loc.y === y);
+    const index = hexes.findIndex((loc) => loc.x === x && loc.y === y);
     return index !== -1 ? index : null;
   };
 
@@ -56,11 +56,110 @@ const HexGrid: React.FC = () => {
     }
   };
 
+  const getNeighborHex = (x: number, y: number, direction: number): HexType | null => {
+    const coords = getNeighborCoords(x, y, direction);
+    if (!coords) return null;
+    return hexes.find((loc) => loc.x === coords.x && loc.y === coords.y) || null;
+  }
+
+  const detectLinesAndLoops = () => {
+    console.log('Detecting lines and loops');
+    const detectedHexPatterns = hexes.map((hex) => ({ index:hex.index, line: false, loop: false, core: false }));
+
+    // Detect lines
+    const directions = [
+      1, // Vertical
+      2, // Up-right
+      3, // Down-right
+    ];
+
+    detectedHexPatterns.forEach((hexPattern) => {
+      const currentHex = hexes.find((h) => h.index === hexPattern.index);
+      if (!currentHex) return;
+      if (currentHex.x === null || currentHex.y === null) return;
+
+      directions.forEach((direction) => {
+        let count = 1;
+        let line = [hexPattern];
+        let lineColor = currentHex.color;
+        let neighborCoords;
+        let neighborIndex: number | null;
+        let neighborHex;
+
+        let x = currentHex.x;
+        let y = currentHex.y;
+        while (true) {
+          if(!x || !y) break;
+
+          neighborCoords = getNeighborCoords(x, y, direction);
+          if (!neighborCoords) break;
+          x = neighborCoords.x;
+          y = neighborCoords.y;
+
+          neighborIndex = findHexIndex(neighborCoords.x, neighborCoords.y);
+          if (neighborIndex === null) break;
+
+          neighborHex = hexes.find((h) => h.index === neighborIndex);
+          if (!neighborHex) break;
+
+          if (neighborHex.color === lineColor) {
+            line.push(detectedHexPatterns[neighborIndex]);
+            count++;
+          } else {
+            break;
+          }
+        }
+
+        if (count >= 5) {
+          console.log('Line detected', line);
+          line.forEach((lineHex) => (lineHex.line = true));
+        }
+      });
+    });
+
+//    // Detect loops
+//    const visited = new Set<number>();
+//
+//    const dfs = (hex: HexType, color: number, path: HexType[]) => {
+//      if (visited.has(hex.index)) return false;
+//      visited.add(hex.index);
+//
+//      if (path.length > 1 && path[0].x === hex.x && path[0].y === hex.y) {
+//        path.forEach((loopHex) => (loopHex.loop = true));
+//        path.slice(1, -1).forEach((coreHex) => (coreHex.core = true));
+//        return true;
+//      }
+//
+//      const neighbors = [1, 2, 3, 4, 5, 6]
+//        .map((direction) => getNeighborCoords(hex.x!, hex.y!, direction))
+//        .filter((coords) => coords !== null)
+//        .map(({ x, y }) => hexes.find((h) => h.x === x && h.y === y && h.color === color))
+//        .filter((neighbor) => neighbor !== undefined) as HexType[];
+//
+//      for (const neighbor of neighbors) {
+//        if (dfs(neighbor, color, [...path, neighbor])) {
+//          return true;
+//        }
+//      }
+//
+//      visited.delete(hex.index);
+//      return false;
+//    };
+//
+//    hexPatterns.forEach((hex) => {
+//      if (!visited.has(hex.index) && hex.x !== null && hex.y !== null) {
+//        dfs(hex, hex.color, [hex]);
+//      }
+//    });
+
+    setHexPatterns(detectedHexPatterns);
+  };
+
   const handleHexClick = (x: number, y: number, pullDirection: number = initialPullDirection) => {
     const clickedIndex = findHexIndex(x, y);
-    if (clickedIndex === null || hexLocations[clickedIndex].removedIndex !== null) return;
+    if (clickedIndex === null || hexes[clickedIndex].removedIndex !== null) return;
 
-    setHexLocations((prev) => {
+    setHexes((prev) => {
       const updated = [...prev];
       updated[clickedIndex] = {
         ...updated[clickedIndex],
@@ -84,17 +183,14 @@ const HexGrid: React.FC = () => {
 
       const neighborIndex = findHexIndex(neighbor.x, neighbor.y);
       if (neighborIndex === null) {
-        const newTile: HexLocationType = {
+        const newTile: HexType = {
           x: currentX,
           y: currentY,
           color: Math.floor(Math.random() * colors.length),
           removedIndex: null,
-          index: hexLocations.length,
-          line: false,
-          loop: false,
-          core: false,
+          index: hexes.length,
         };
-        setHexLocations((prev) => [...prev, newTile]);
+        setHexes((prev) => [...prev, newTile]);
         break;
       }
 
@@ -113,10 +209,11 @@ const HexGrid: React.FC = () => {
   };
 
   useEffect(() => {
-    const removedTiles = hexLocations
+    console.log("useEffect");
+    const removedTiles = hexes
       .filter((tile) => tile.removedIndex !== null)
       .sort((a, b) => (a.removedIndex! - b.removedIndex!));
-    hexLocations.forEach((hex) => {
+    hexes.forEach((hex) => {
       const hexRef = hexRefs.current[hex.index];
       if (hexRef) {
         if (hex.x !== null && hex.y !== null) {
@@ -129,13 +226,14 @@ const HexGrid: React.FC = () => {
         }
       }
     });
-  }, [hexLocations]);
+    detectLinesAndLoops();
+  }, [hexes]);
 
   const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH + HEX_WIDTH * 0.25; // +2 is for the stack of used tiles on the right, 0.25 = some margin
   const totalHeight = (1 + NUMBER_OF_ROWS) * HEX_HEIGHT + HEX_HEIGHT * 0.25; // +1 is for the stagger of tiles in a row, 0.25 = some margin
 
-  const fieldHexes = hexLocations.filter((hex) => hex.removedIndex === null);
-  const removedHexes = hexLocations.filter((hex) => hex.removedIndex !== null);
+  const fieldHexes = hexes.filter((hex) => hex.removedIndex === null);
+  const removedHexes = hexes.filter((hex) => hex.removedIndex !== null);
 
   return (
     <>
@@ -149,21 +247,24 @@ const HexGrid: React.FC = () => {
         viewBox={`0 0 ${totalWidth} ${totalHeight}`}
         style={{ position: 'relative', margin: '1rem' }}
       >
-        {fieldHexes.map((hex) => (
-          <polygon
+        {fieldHexes.map((hex) => {
+          const hexPattern = hexPatterns?.find((pattern) => pattern.index === hex.index);
+          const isLine = hexPattern && hexPattern.line;
+          if (isLine) console.log('Line hex', hex);
+          return <polygon
             key={hex.index}
             ref={(el) => (hexRefs.current[hex.index] = el)}
             points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
             style={{
               fill: colors[hex.color],
-              stroke: 'black',
-              strokeWidth: '1px',
+              stroke: isLine ? 'green' : 'black',
+              strokeWidth: isLine ? '5px' : '1px',
               cursor: 'pointer',
               transition: 'transform 0.3s ease',
             }}
             onClick={() => handleHexClick(hex.x!, hex.y!)}
           />
-        ))}
+        })}
         {removedHexes
           .sort((a, b) => (a.removedIndex! - b.removedIndex!))
           .map((hex, pileIndex) => (
