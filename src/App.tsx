@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import DirectionSelector from './components/DirectionSelector';
+import { HexPatternsType, HexType } from './types';
+import { getNeighborCoords } from './utils/NeighborUtils';
+import { detectLinesAndLoops } from './utils/detectLinesAndLoops';
 
-const NUMBER_OF_COLUMNS = 15;
+const NUMBER_OF_COLUMNS = 7;
 const NUMBER_OF_ROWS = 12;
 const HEX_HEIGHT = 40;
 const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
 const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
 const COLUMN_WIDTH = HEX_WIDTH * 0.75; // Width of a column
-const colors = ['red', 'blue', 'gray', 'yellow', 'purple'];
-
-type HexType = {  index: number; x: number | null; y: number | null; color: number; removedIndex: number | null; };
-type HexPatternsType = { index: number; line: boolean; loop: boolean; core: boolean };
+//const colors = ['red', 'blue', 'gray', 'yellow', 'purple'];
+const opacity = 0.5;
+const colors = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];
 
 const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
@@ -43,117 +45,11 @@ const HexGrid: React.FC = () => {
     return index !== -1 ? index : null;
   };
 
-  const getNeighborCoords = (x: number, y: number, direction: number): { x: number; y: number } | null => {
-    const evenRow = x % 2 === 0;
-    switch (direction) {
-      case 1: return { x, y: y - 1 }; // Above
-      case 2: return { x: x + 1, y: evenRow ? y : y - 1 }; // Upper-right
-      case 3: return { x: x + 1, y: evenRow ? y + 1 : y }; // Lower-right
-      case 4: return { x, y: y + 1 }; // Below
-      case 5: return { x: x - 1, y: evenRow ? y + 1 : y }; // Lower-left
-      case 6: return { x: x - 1, y: evenRow ? y : y - 1 }; // Upper-left
-      default: return null;
-    }
-  };
-
-  const getNeighborHex = (x: number, y: number, direction: number): HexType | null => {
-    const coords = getNeighborCoords(x, y, direction);
-    if (!coords) return null;
-    return hexes.find((loc) => loc.x === coords.x && loc.y === coords.y) || null;
-  }
-
-  const detectLinesAndLoops = () => {
-    console.log('Detecting lines and loops');
-    const detectedHexPatterns = hexes.map((hex) => ({ index:hex.index, line: false, loop: false, core: false }));
-
-    // Detect lines
-    const directions = [
-      1, // Vertical
-      2, // Up-right
-      3, // Down-right
-    ];
-
-    detectedHexPatterns.forEach((hexPattern) => {
-      const currentHex = hexes.find((h) => h.index === hexPattern.index);
-      if (!currentHex) return;
-      if (currentHex.x === null || currentHex.y === null) return;
-
-      directions.forEach((direction) => {
-        let count = 1;
-        let line = [hexPattern];
-        let lineColor = currentHex.color;
-        let neighborCoords;
-        let neighborIndex: number | null;
-        let neighborHex;
-
-        let x = currentHex.x;
-        let y = currentHex.y;
-        while (true) {
-          if(!x || !y) break;
-
-          neighborCoords = getNeighborCoords(x, y, direction);
-          if (!neighborCoords) break;
-          x = neighborCoords.x;
-          y = neighborCoords.y;
-
-          neighborIndex = findHexIndex(neighborCoords.x, neighborCoords.y);
-          if (neighborIndex === null) break;
-
-          neighborHex = hexes.find((h) => h.index === neighborIndex);
-          if (!neighborHex) break;
-
-          if (neighborHex.color === lineColor) {
-            line.push(detectedHexPatterns[neighborIndex]);
-            count++;
-          } else {
-            break;
-          }
-        }
-
-        if (count >= 5) {
-          console.log('Line detected', line);
-          line.forEach((lineHex) => (lineHex.line = true));
-        }
-      });
-    });
-
-//    // Detect loops
-//    const visited = new Set<number>();
-//
-//    const dfs = (hex: HexType, color: number, path: HexType[]) => {
-//      if (visited.has(hex.index)) return false;
-//      visited.add(hex.index);
-//
-//      if (path.length > 1 && path[0].x === hex.x && path[0].y === hex.y) {
-//        path.forEach((loopHex) => (loopHex.loop = true));
-//        path.slice(1, -1).forEach((coreHex) => (coreHex.core = true));
-//        return true;
-//      }
-//
-//      const neighbors = [1, 2, 3, 4, 5, 6]
-//        .map((direction) => getNeighborCoords(hex.x!, hex.y!, direction))
-//        .filter((coords) => coords !== null)
-//        .map(({ x, y }) => hexes.find((h) => h.x === x && h.y === y && h.color === color))
-//        .filter((neighbor) => neighbor !== undefined) as HexType[];
-//
-//      for (const neighbor of neighbors) {
-//        if (dfs(neighbor, color, [...path, neighbor])) {
-//          return true;
-//        }
-//      }
-//
-//      visited.delete(hex.index);
-//      return false;
-//    };
-//
-//    hexPatterns.forEach((hex) => {
-//      if (!visited.has(hex.index) && hex.x !== null && hex.y !== null) {
-//        dfs(hex, hex.color, [hex]);
-//      }
-//    });
-
-    setHexPatterns(detectedHexPatterns);
-  };
+//  const getNeighborHex = (x: number, y: number, direction: number): HexType | null => {
+//    const coords = getNeighborCoords(x, y, direction);
+//    if (!coords) return null;
+//    return hexes.find((loc) => loc.x === coords.x && loc.y === coords.y) || null;
+//  }
 
   const handleHexClick = (x: number, y: number, pullDirection: number = initialPullDirection) => {
     const clickedIndex = findHexIndex(x, y);
@@ -226,7 +122,10 @@ const HexGrid: React.FC = () => {
         }
       }
     });
-    detectLinesAndLoops();
+
+    
+    setHexPatterns(detectLinesAndLoops(hexes));
+
   }, [hexes]);
 
   const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH + HEX_WIDTH * 0.25; // +2 is for the stack of used tiles on the right, 0.25 = some margin
@@ -249,21 +148,36 @@ const HexGrid: React.FC = () => {
       >
         {fieldHexes.map((hex) => {
           const hexPattern = hexPatterns?.find((pattern) => pattern.index === hex.index);
+          const evenColumn = hex.x! % 2 === 0;
           const isLine = hexPattern && hexPattern.line;
-          if (isLine) console.log('Line hex', hex);
-          return <polygon
-            key={hex.index}
-            ref={(el) => (hexRefs.current[hex.index] = el)}
-            points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
-            style={{
-              fill: colors[hex.color],
-              stroke: isLine ? 'green' : 'black',
-              strokeWidth: isLine ? '5px' : '1px',
-              cursor: 'pointer',
-              transition: 'transform 0.3s ease',
-            }}
-            onClick={() => handleHexClick(hex.x!, hex.y!)}
-          />
+          const isCore = hexPattern && hexPattern.core;
+          const isEdge = hexPattern && hexPattern.edge;
+          return (
+            <g key={hex.index}>
+              <polygon
+                ref={(el) => (hexRefs.current[hex.index] = el)}
+                points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
+                style={{
+                  fill: colors[hex.color],
+                  stroke: isLine ? "rgba(0,255,0,0.5)" : isCore ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
+                  strokeWidth: (isLine || isCore) ? '5px' : '1px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.3s ease',
+                }}
+                onClick={() => handleHexClick(hex.x!, hex.y!)}
+              />
+              <text
+                x={((hex.x ?? 0) + 1.9) * (COLUMN_WIDTH+2)}
+                y={((hex.y ?? 0) + 0) * (HEX_HEIGHT+2) + (HEX_HEIGHT / (evenColumn ? 1 : 2))}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill={isEdge ? "#aaa" : "white"}
+                style={{ pointerEvents: 'none', fontSize: '12px', fontWeight: 'bold' }}
+              >
+                {hex.index.toString()}
+              </text>
+            </g>
+          );
         })}
         {removedHexes
           .sort((a, b) => (a.removedIndex! - b.removedIndex!))
