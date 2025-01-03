@@ -28,7 +28,7 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
         let x = currentHex.x;
         let y = currentHex.y;
         while (true) {
-          if(!x || !y) break;
+          if(x === null || y === null) break;
 
           neighborCoords = getNeighborCoords(x, y, direction);
           if (!neighborCoords) break;
