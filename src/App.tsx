@@ -7,11 +7,13 @@ import { detectLinesAndLoops } from './utils/detectLinesAndLoops';
 const NUMBER_OF_COLUMNS = 7;
 const NUMBER_OF_ROWS = 12;
 const HEX_HEIGHT = 40;
+const HEX_MARGIN = 2;
 const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
 const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
-const COLUMN_WIDTH = HEX_WIDTH * 0.75; // Width of a column
+const COLUMN_WIDTH = HEX_WIDTH * 0.75 + HEX_MARGIN; // Width of a column
+const ROW_HEIGHT = HEX_HEIGHT + HEX_MARGIN; // Height of a row
 //const colors = ['red', 'blue', 'gray', 'yellow', 'purple'];
-const opacity = 0.5;
+const opacity = 0.75;
 const colors = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];
 
 const HexGrid: React.FC = () => {
@@ -112,8 +114,8 @@ const HexGrid: React.FC = () => {
       const hexRef = hexRefs.current[hex.index];
       if (hexRef) {
         if (hex.x !== null && hex.y !== null) {
-          const xPos = hex.x * COLUMN_WIDTH + hex.x * 2 + HEX_WIDTH * 1;
-          const yPos = hex.y * HEX_HEIGHT + (hex.x % 2 === 0 ? HEX_HEIGHT / 2 : 0) + hex.y * 2;
+          const xPos = hex.x * COLUMN_WIDTH + HEX_WIDTH * 1;
+          const yPos = hex.y * ROW_HEIGHT + (hex.x % 2 === 0 ? ROW_HEIGHT / 2 : 0);
           hexRef.setAttribute('transform', `translate(${xPos}, ${yPos})`);
         } else {
           const yOffset = removedTiles.findIndex((tile) => tile.removedIndex === hex.removedIndex) * HEX_HEIGHT * 0.67;
@@ -127,8 +129,8 @@ const HexGrid: React.FC = () => {
 
   }, [hexes]);
 
-  const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH + HEX_WIDTH * 0.25; // +2 is for the stack of used tiles on the right, 0.25 = some margin
-  const totalHeight = (1 + NUMBER_OF_ROWS) * HEX_HEIGHT + HEX_HEIGHT * 0.25; // +1 is for the stagger of tiles in a row, 0.25 = some margin
+  const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH; // +2 is for the stack of used tiles on the right, it's 0.5 more than it needs to be
+  const totalHeight = (1 + NUMBER_OF_ROWS) * ROW_HEIGHT; // +1 is for the stagger of tiles in a row, it's 0.5 more than it needs to be
 
   const fieldHexes = hexes.filter((hex) => hex.removedIndex === null);
   const removedHexes = hexes.filter((hex) => hex.removedIndex !== null);
