@@ -80,11 +80,11 @@ const HexGrid: React.FC = () => {
       const neighborIndex = findHexIndex(neighbor.x, neighbor.y);
       if (neighborIndex === null) {
         const newTile: HexType = {
+          index: hexes.length,
           x: currentX,
           y: currentY,
           color: Math.floor(Math.random() * colors.length),
           removedIndex: null,
-          index: hexes.length,
         };
         setHexes((prev) => [...prev, newTile]);
         break;
@@ -105,7 +105,6 @@ const HexGrid: React.FC = () => {
   };
 
   useEffect(() => {
-    console.log("useEffect");
     const removedTiles = hexes
       .filter((tile) => tile.removedIndex !== null)
       .sort((a, b) => (a.removedIndex! - b.removedIndex!));
@@ -149,9 +148,11 @@ const HexGrid: React.FC = () => {
         {fieldHexes.map((hex) => {
           const hexPattern = hexPatterns?.find((pattern) => pattern.index === hex.index);
           const evenColumn = hex.x! % 2 === 0;
-          const isLine = hexPattern && hexPattern.line;
-          const isCore = hexPattern && hexPattern.core;
           const isEdge = hexPattern && hexPattern.edge;
+          const isLine = hexPattern && hexPattern.line;
+          const isLoop = hexPattern && hexPattern.loop;
+          const isCore = hexPattern && hexPattern.core;
+          const strokeOpacity = isEdge ? 0.8 : 1;
           return (
             <g key={hex.index}>
               <polygon
@@ -159,8 +160,8 @@ const HexGrid: React.FC = () => {
                 points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
                 style={{
                   fill: colors[hex.color],
-                  stroke: isLine ? "rgba(0,255,0,0.5)" : isCore ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)",
-                  strokeWidth: (isLine || isCore) ? '5px' : '1px',
+                  stroke: isLine ? `rgba(0,255,0,${strokeOpacity})` : isCore ? `rgba(255,255,255,${strokeOpacity})` : isLoop ? colors[hex.color] : `rgba(0,0,0,${strokeOpacity})`,
+                  strokeWidth: isCore ? '10px' : (isLine || isLoop) ? '3px' : '0px',
                   cursor: 'pointer',
                   transition: 'transform 0.3s ease',
                 }}
@@ -171,8 +172,8 @@ const HexGrid: React.FC = () => {
                 y={((hex.y ?? 0) + 0) * (HEX_HEIGHT+2) + (HEX_HEIGHT / (evenColumn ? 1 : 2))}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill={isEdge ? "#aaa" : "white"}
-                style={{ pointerEvents: 'none', fontSize: '12px', fontWeight: 'bold' }}
+                fill={"transparent"/*isEdge ? "#aaa" : "white"*/}
+                style={{ pointerEvents: 'none', fontSize: isLoop ? '14px' : '8px' , fontWeight: 'bold' }}
               >
                 {hex.index.toString()}
               </text>

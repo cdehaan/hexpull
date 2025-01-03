@@ -2,8 +2,8 @@ import { HexPatternsType, HexType } from "../types";
 import { getEdgeHexes, getNeighborCoords, getNeighborHex } from "./NeighborUtils";
 
 export const detectLinesAndLoops = (hexes: HexType[]) => {
-    console.log('Detecting lines and loops');
-    const detectedHexPatterns: HexPatternsType[] = hexes.map((hex) => ({ index:hex.index, edge: false, line: false, loop: null, core: null }));
+    const gameboardHexes = hexes.filter((hex) => hex.removedIndex === null);
+    const detectedHexPatterns: HexPatternsType[] = gameboardHexes.map((hex) => ({ index:hex.index, edge: false, line: false, loop: null, core: null }));
 
     // Detect lines
     const directions = [
@@ -42,7 +42,8 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
           if (!neighborHex) break;
 
           if (neighborHex.color === lineColor) {
-            line.push(detectedHexPatterns[neighborIndex]);
+            const detectedHexPattern = detectedHexPatterns.find((pattern) => pattern.index === neighborIndex);
+            if (detectedHexPattern) line.push(detectedHexPattern);
             count++;
           } else {
             break;
@@ -56,14 +57,14 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
       });
     });
 
-    // Detect loops
-    const numberOfColors = hexes.reduce((acc, hex) => {
+    // Detect cores
+    const numberOfColors = 1 + hexes.reduce((acc, hex) => {
       const colorValue = Number(hex.color); // Try to cast the color value to a number
       if (!isNaN(colorValue)) { // Check if it's a valid number
           return Math.max(acc, colorValue); // Update the accumulator with the maximum value
       }
       return acc; // If not a number, just return the accumulator
-    }, 0); // Start with the smallest safe integer
+    }, 0); // Start no colours
     const colors = Array.from(Array(numberOfColors).keys()); // Create an array of colors, like [0, 1, 2, 3, 4, 5]
 
     const edgeHexes = getEdgeHexes(hexes);
@@ -74,7 +75,7 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
     });
 
     const walkNeighbors = (hex: HexType, color: number, detectedHexPatterns: HexPatternsType[], hexes: HexType[]) => {
-      if (!hex.x || !hex.y) return; // Should never happen
+      if (hex.x === null || hex.y === null) return; // Should never happen
 
       for (let direction = 1; direction <= 6; direction++) {
           const neighbor = getNeighborHex(hex.x, hex.y, direction, hexes);
@@ -83,43 +84,49 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
           const neighborPattern = detectedHexPatterns.find((pattern) => pattern.index === neighbor.index);
           if (!neighborPattern) continue; // Should never happen
 
-          if (neighborPattern.core === false) return; // Already processed
-          neighborPattern.core = false; // Mark as processed
+          if (neighborPattern.core !== null) continue; // Already processed
+          neighborPattern.core = false; // Mark as processed (reached in the walk, thus not the core of a loop)
 
-          if (neighbor.color === color) return; // Same color, stop walking
+          if (neighbor.color === color) continue; // Same color, stop walking
 
           walkNeighbors(neighbor, color, detectedHexPatterns, hexes); // Recursive call
       }
   };
 
+  for (const color of colors) {
+    for (const edgeHex of edgeHexes) {
+        if (edgeHex.x === null || edgeHex.y === null) continue;
 
-  colors.forEach((color) => {
+        const currentPattern = detectedHexPatterns.find((pattern) => pattern.index === edgeHex.index);
+        if (!currentPattern) continue;
 
-    edgeHexes.forEach((edgeHex) => {
-      if (edgeHex.x === null || edgeHex.y === null) return; // should never happen
+        if (currentPattern.core !== null) continue;
+        currentPattern.core = false;
 
-      const currentPattern = detectedHexPatterns.find((pattern) => pattern.index === edgeHex.index);
-      if(!currentPattern) return; // should never happen
+        if (edgeHex.color === color) continue;
 
-      if(currentPattern.core === false) return;
-      currentPattern.core = false;
+        walkNeighbors(edgeHex, color, detectedHexPatterns, hexes);
+    }
 
-      if(edgeHex.color === color) return;
+    for (const hexPattern of detectedHexPatterns) {
+        if (hexPattern.core === null) hexPattern.core = true;
+        if (hexPattern.core === false) hexPattern.core = null;
+    }
+  }
 
-      walkNeighbors(edgeHex, color, detectedHexPatterns, hexes);
-    });
+  // Detect loops
+  const cores = detectedHexPatterns.filter((hexPattern) => hexPattern.core === true);
+  for (const core of cores) {
+    const coreHex = hexes.find((hex) => hex.index === core.index);
+    if (!coreHex) continue;
 
-    detectedHexPatterns.forEach((hexPattern) => {
-      if(hexPattern.core === null) {
-        hexPattern.core = true;
-      } else {
-        hexPattern.core = null;
-      }
-    });  
+    const coreNeighbors = [1, 2, 3, 4, 5, 6].map((direction) => getNeighborHex(coreHex.x!, coreHex.y!, direction, hexes));
+    const coreNeighborsPatterns = coreNeighbors.map((neighbor) => detectedHexPatterns.find((pattern) => pattern.index === neighbor?.index));
 
-  });
-
-
+    for (const pattern of coreNeighborsPatterns) {
+      if (pattern && pattern.core !== true) pattern.loop = true;
+    }
+  }
 
   return detectedHexPatterns;
 };
