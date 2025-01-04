@@ -13,3 +13,5 @@ export type HexPatternsType = {
     loop: boolean | null;
     core: boolean | null;
 };
+
+export type ActionsType = "pull" | "line" | "ring" | "select";

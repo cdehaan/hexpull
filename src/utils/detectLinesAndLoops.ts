@@ -51,7 +51,7 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
         }
 
         if (count >= 5) {
-          //console.log('Line detected', line);
+          //console.log("Line detected", line);
           line.forEach((lineHex) => (lineHex.line = true));
         }
       });
