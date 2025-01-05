@@ -157,11 +157,11 @@ const HexGrid: React.FC = () => {
           const hexPattern = hexPatterns?.find((pattern) => pattern.index === hex.index);
           const evenColumn = hex.x! % 2 === 0;
           const isEdge = hexPattern && hexPattern.edge;
-          const isLine = hexPattern && hexPattern.line;
+          const isLine = hexPattern && hexPattern.line.length > 0;
           const isLoop = hexPattern && hexPattern.loop;
           const isCore = hexPattern && hexPattern.core;
           const strokeOpacity = isEdge ? 0.8 : 1;
-          const displayIndex = false;
+          const displayIndex = true;
           return (
             <g key={hex.index}>
               <polygon

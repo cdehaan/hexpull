@@ -9,7 +9,7 @@ export type HexType = {
 export type HexPatternsType = {
     index: number;
     edge: boolean;
-    line: boolean;
+    line: number[];
     loop: boolean | null;
     core: boolean | null;
 };

@@ -3,9 +3,10 @@ import { getEdgeHexes, getNeighborCoords, getNeighborHex } from "./NeighborUtils
 
 export const detectLinesAndLoops = (hexes: HexType[]) => {
     const gameboardHexes = hexes.filter((hex) => hex.removedIndex === null);
-    const detectedHexPatterns: HexPatternsType[] = gameboardHexes.map((hex) => ({ index:hex.index, edge: false, line: false, loop: null, core: null }));
+    const detectedHexPatterns: HexPatternsType[] = gameboardHexes.map((hex) => ({ index:hex.index, edge: false, line: [], loop: null, core: null }));
 
     // Detect lines
+    let lineIndex = 0;
     const directions = [
       1, // Vertical
       2, // Up-right
@@ -15,15 +16,19 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
     detectedHexPatterns.forEach((hexPattern) => {
       const currentHex = hexes.find((h) => h.index === hexPattern.index);
       if (!currentHex) return;
-      if (currentHex.x === null || currentHex.y === null) return;
 
       directions.forEach((direction) => {
+        if (currentHex.x === null || currentHex.y === null) return;
         let count = 1;
         let line = [hexPattern];
         let lineColor = currentHex.color;
         let neighborCoords;
         let neighborIndex: number | null;
         let neighborHex;
+
+        // Skip if the line is already detected from a hex further back in this direction
+        const backwardsneighbor = getNeighborHex(currentHex.x, currentHex.y, direction + 3, hexes);
+        if (backwardsneighbor && backwardsneighbor.color === lineColor) return;
 
         let x = currentHex.x;
         let y = currentHex.y;
@@ -52,7 +57,9 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
 
         if (count >= 5) {
           //console.log("Line detected", line);
-          line.forEach((lineHex) => (lineHex.line = true));
+          line.forEach((lineHex) => (lineHex.line.push(lineIndex)));
+          line.forEach((lineHex) => {if(lineHex.line.length > 1) console.log("Double line detected", lineHex)});
+          lineIndex++;
         }
       });
     });
