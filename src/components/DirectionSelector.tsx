@@ -5,8 +5,8 @@ import { ActionsType } from "../types";
 type DirectionSelectorPropsType = {
   initialPullDirection: number;
   setInitialPullDirection: (direction: number) => void;
-  isClockwise: boolean;
-  setIsClockwise: (isClockwise: boolean) => void;
+  isClockwise: boolean | null;
+  setIsClockwise: (isClockwise: boolean | null) => void;
   tapAction: ActionsType;
   setTapAction: (action: ActionsType) => void;
 };
@@ -36,17 +36,41 @@ const DirectionSelector: React.FC<DirectionSelectorPropsType> = ({ initialPullDi
         ))}
       </select>
       <div>
-        <label htmlFor="clockwise-checkbox">Clockwise</label>
-        <input
-          type="checkbox"
-          id="clockwise-checkbox"
-          checked={isClockwise}
-          onChange={(e) => setIsClockwise(e.target.checked)}
-        />
+        <label>
+          <input
+            type="radio"
+            name="rotation"
+            value="clockwise"
+            checked={isClockwise === true}
+            onChange={() => setIsClockwise(true)}
+          />
+          Clockwise
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="rotation"
+            value="counter-clockwise"
+            checked={isClockwise === false}
+            onChange={() => setIsClockwise(false)}
+          />
+          Counter-clockwise
+        </label>
+
+        <label>
+          <input
+            type="radio"
+            name="rotation"
+            value="straight"
+            checked={isClockwise === null}
+            onChange={() => setIsClockwise(null)}
+          />
+          Straight
+        </label>
       </div>
       <StyledButton onClick={() => {setTapAction("pull")}} style={{borderColor: tapAction==="pull" ? "#646cff" : "transparent"}}>Pull</StyledButton>
-      <StyledButton onClick={() => {setTapAction("line")}} style={{borderColor: tapAction==="line" ? "#646cff" : "transparent"}}>Line</StyledButton>
-      <StyledButton onClick={() => {setTapAction("ring")}} style={{borderColor: tapAction==="ring" ? "#646cff" : "transparent"}}>Ring</StyledButton>
+      <StyledButton onClick={() => {setTapAction("collect")}} style={{borderColor: tapAction==="collect" ? "#646cff" : "transparent"}}>Collect</StyledButton>
     </div>
   );
 };

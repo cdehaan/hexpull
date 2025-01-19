@@ -4,14 +4,20 @@ export type HexType = {
     y: number | null;
     color: number;
     removedIndex: number | null;
+    isQueuedForCollection: boolean;
+};
+
+export type LinePointType = {
+    lineIndex: number;
+    step: number;
 };
 
 export type HexPatternsType = {
     index: number;
     edge: boolean;
-    line: number[];
+    lines: LinePointType[];
     loop: boolean | null;
     core: boolean | null;
 };
 
-export type ActionsType = "pull" | "line" | "ring" | "select";
+export type ActionsType = "pull" | "line" | "ring" | "select" | "collect";

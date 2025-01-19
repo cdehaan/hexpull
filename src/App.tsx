@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import DirectionSelector from "./components/DirectionSelector";
 import { ActionsType, HexPatternsType, HexType } from "./types";
-import { getNeighborCoords } from "./utils/NeighborUtils";
+import { getNeighborCoords, getNeighborHex, getNeighborPattern } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
 
 const NUMBER_OF_COLUMNS = 7;
@@ -12,13 +12,14 @@ const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
 const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
 const COLUMN_WIDTH = HEX_WIDTH * 0.75 + HEX_MARGIN; // Width of a column
 const ROW_HEIGHT = HEX_HEIGHT + HEX_MARGIN; // Height of a row
+const DIRECTIONS_ARRAY = [1, 2, 3, 4, 5, 6];
 const opacity = 0.75;
 //const colors = ["red", "blue", "gray", "yellow", "purple"];
 const colors = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];
 
 const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
-  const [isClockwise, setIsClockwise] = useState(true);
+  const [isClockwise, setIsClockwise] = useState<boolean | null>(true); // null = always pull in the same (initial) direction, no rotation
   const [tapAction, setTapAction] = useState<ActionsType>("pull");
 
   const [hexes, setHexes] = useState<HexType[]>(
@@ -28,10 +29,12 @@ const HexGrid: React.FC = () => {
       y: Math.floor(i / NUMBER_OF_COLUMNS),
       color: Math.floor(Math.random() * colors.length),
       removedIndex: null,
+      isQueuedForCollection: false,
     }))
   );
 
-  const [hexPatterns, setHexPatterns] = useState<HexPatternsType[]>([]);
+  //const [hexPatterns, setHexPatterns] = useState<HexPatternsType[]>([]);
+  const hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
 
   const hexRefs = useRef<SVGPolygonElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
@@ -48,15 +51,11 @@ const HexGrid: React.FC = () => {
     return index !== -1 ? index : null;
   };
 
-//  const getNeighborHex = (x: number, y: number, direction: number): HexType | null => {
-//    const coords = getNeighborCoords(x, y, direction);
-//    if (!coords) return null;
-//    return hexes.find((loc) => loc.x === coords.x && loc.y === coords.y) || null;
-//  }
-
   const handleHexClick = (hex: HexType) => {
     if (tapAction === "pull") {
       removeHex(hex);
+    } else if (tapAction === "collect") {
+      collectPatterns(hex);
     }
   };
 
@@ -93,25 +92,76 @@ const HexGrid: React.FC = () => {
           y: currentY,
           color: Math.floor(Math.random() * colors.length),
           removedIndex: null,
+          isQueuedForCollection: false,
         };
         setHexes((prev) => [...prev, newTile]);
         break;
       }
 
       moveHex(neighborIndex, currentX, currentY);
+
       currentX = neighbor.x;
       currentY = neighbor.y;
       steps++;
 
+      // When spiraling out, if you've moved the length of the current line, it's time to change direction, and maybe the next line will be longer
+      // Every other line gets longer, so grow is toggled every time steps reaches length
+      // So this will increase the length of the line in a spiral every other step, and shift the direction of each line one tick, either clockwise or counter-clockwise
+      // If moving straight (i.e. isClockwise === null) the length and grow calculations are still done, but have no effect
+      // Also, when clearing the board from collecting a pattern, the direction is always straight
       if (steps >= length) {
         steps = 0;
         if (grow) length++;
         grow = !grow;
-        direction = isClockwise ? (direction % 6) + 1 : (direction - 2 + 6) % 6 + 1;
+        direction = (isClockwise === null || tapAction === "collect") ? initialPullDirection : isClockwise === true ? (direction % 6) + 1 : (direction - 2 + 6) % 6 + 1;
       }
     }
   };
 
+  const collectPatterns = (hex: HexType) => {
+    if(hex.x === null || hex.y === null) return; // could be a removed hex, don't collect patterns from those (should never happen anyway)
+
+    const hexPattern = hexPatterns.find((pattern) => pattern.index === hex.index);
+    if (!hexPattern) return;
+    if (hexPattern.lines.length === 0 && hexPattern.loop === null && hexPattern.core === null) {
+      console.log("No pattern detected");
+      return;
+    }
+    console.log(hexPattern);
+
+    // This hex is part of (at least) one line
+    if (hexPattern.lines.length > 0) {
+
+      // All the lines this hex is part of
+      const lineIndexes = hexPattern.lines.map((line) => line.lineIndex);
+      collectLineHex(hex, lineIndexes, {x: hex.x, y: hex.y});
+    }
+
+    if (hexPattern.loop) {
+      console.log("Loop detected");
+    }
+
+    if (hexPattern.core) {
+      console.log("Core detected");
+    }
+  };
+
+  const collectLineHex = (hex: HexType, lineIndexes: number[], origin:{x: number, y: number}) => {
+    // Look at all neighbors of this hex to see if they are part of the same lines
+    DIRECTIONS_ARRAY.forEach((direction) => {
+      if(!hex.x || !hex.y) return;
+      const neighborHex = getNeighborHex(hex.x, hex.y, direction, hexes);
+      if (!neighborHex || neighborHex.isQueuedForCollection) return;
+      const neighborPattern = getNeighborPattern(hex.x!, hex.y!, direction, hexes, hexPatterns);
+      if (!neighborPattern) return;
+      const neighborLineIndexes = neighborPattern.lines.map((line) => line.lineIndex);
+      const isInLine = lineIndexes.some(index => neighborLineIndexes.includes(index));
+      if (isInLine) {
+        neighborHex.isQueuedForCollection = true;
+        collectLineHex(neighborHex, lineIndexes, origin);
+      }
+    });
+  }
   useEffect(() => {
     const removedTiles = hexes
       .filter((tile) => tile.removedIndex !== null)
@@ -129,10 +179,6 @@ const HexGrid: React.FC = () => {
         }
       }
     });
-
-    
-    setHexPatterns(detectLinesAndLoops(hexes));
-
   }, [hexes]);
 
   const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH; // +2 is for the stack of used tiles on the right, it's 0.5 more than it needs to be
@@ -157,7 +203,8 @@ const HexGrid: React.FC = () => {
           const hexPattern = hexPatterns?.find((pattern) => pattern.index === hex.index);
           const evenColumn = hex.x! % 2 === 0;
           const isEdge = hexPattern && hexPattern.edge;
-          const isLine = hexPattern && hexPattern.line.length > 0;
+          const isLine = hexPattern && hexPattern.lines.length > 0;
+          const lineCount = hexPattern ? hexPattern.lines.length : 0;
           const isLoop = hexPattern && hexPattern.loop;
           const isCore = hexPattern && hexPattern.core;
           const strokeOpacity = isEdge ? 0.8 : 1;
@@ -169,8 +216,8 @@ const HexGrid: React.FC = () => {
                 points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
                 style={{
                   fill: colors[hex.color],
-                  stroke: isLine ? `rgba(0,255,0,${strokeOpacity})` : isCore ? `rgba(255,255,255,${strokeOpacity})` : isLoop ? colors[hex.color] : `rgba(0,0,0,${strokeOpacity})`,
-                  strokeWidth: isCore ? "10px" : (isLine || isLoop) ? "3px" : "0px",
+                  stroke: (isLine && isCore) ? `rgba(128,255,128,${strokeOpacity})` : isLine ? `rgba(0,255,0,${strokeOpacity})` : isCore ? `rgba(255,255,255,${strokeOpacity})` : isLoop ? colors[hex.color] : `rgba(0,0,0,${strokeOpacity})`,
+                  strokeWidth: isCore ? "10px" : `${lineCount*3}px`,
                   cursor: "pointer",
                   transition: "transform 0.3s ease",
                 }}
@@ -181,10 +228,10 @@ const HexGrid: React.FC = () => {
                 y={(hex.y ?? 0) * (ROW_HEIGHT) + (HEX_HEIGHT / (evenColumn ? 1 : 2))}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill={!displayIndex ? "transparent" : isEdge ? "#999" : "white"}
-                style={{ pointerEvents: "none", fontSize: isLoop ? "14px" : "14px" , fontWeight: "bold" }}
+                fill={isEdge ? "#999" : "white"}
+                style={{ pointerEvents: "none", fontSize: isLoop ? "14px" : "10px" , fontWeight: "bold" }}
               >
-                {hex.index.toString()}
+                {displayIndex ? hex.index.toString() : ""}
               </text>
             </g>
           );

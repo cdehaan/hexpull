@@ -1,4 +1,4 @@
-import { HexType } from "../types";
+import { HexPatternsType, HexType } from "../types";
 
 export const getNeighborCoords = (x: number, y: number, direction: number): { x: number; y: number } | null => {
     const evenRow = x % 2 === 0;
@@ -18,6 +18,14 @@ export const getNeighborHex = (x: number, y: number, direction: number, hexes: H
   if (!coords) return null;
   return hexes.find((loc) => loc.x === coords.x && loc.y === coords.y) || null;
 }
+
+export const getNeighborPattern = (x: number, y: number, direction: number, hexes: HexType[], hexPatterns: HexPatternsType[]): HexPatternsType | null => {
+  const coords = getNeighborCoords(x, y, direction);
+  if (!coords) return null;
+  const hex = hexes.find((loc) => loc.x === coords.x && loc.y === coords.y) || null;
+  if (!hex) return null;
+  return hexPatterns.find((pattern) => pattern.index === hex.index) || null;
+} 
 
 export const getEdgeHexes = (hexes: HexType[]): HexType[] => {
   return hexes

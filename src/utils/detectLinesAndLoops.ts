@@ -3,7 +3,13 @@ import { getEdgeHexes, getNeighborCoords, getNeighborHex } from "./NeighborUtils
 
 export const detectLinesAndLoops = (hexes: HexType[]) => {
     const gameboardHexes = hexes.filter((hex) => hex.removedIndex === null);
-    const detectedHexPatterns: HexPatternsType[] = gameboardHexes.map((hex) => ({ index:hex.index, edge: false, line: [], loop: null, core: null }));
+    const detectedHexPatterns: HexPatternsType[] = gameboardHexes.map((hex): HexPatternsType => ({
+      index:hex.index,
+      edge: false,
+      lines: [],
+      loop: null,
+      core: null
+    }));
 
     // Detect lines
     let lineIndex = 0;
@@ -57,8 +63,8 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
 
         if (count >= 5) {
           //console.log("Line detected", line);
-          line.forEach((lineHex) => (lineHex.line.push(lineIndex)));
-          line.forEach((lineHex) => {if(lineHex.line.length > 1) console.log("Double line detected", lineHex)});
+          line.forEach((lineHex, index) => (lineHex.lines.push({lineIndex: lineIndex, step: index})));
+          //line.forEach((lineHex) => {if(lineHex.line.length > 1) console.log("Double line detected", lineHex)});
           lineIndex++;
         }
       });
