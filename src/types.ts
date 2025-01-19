@@ -3,6 +3,7 @@ export type HexType = {
     x: number | null;
     y: number | null;
     color: number;
+    powerup: PowerupType | null;
     removedIndex: number | null;
     isQueuedForCollection: boolean;
 };
@@ -21,3 +22,16 @@ export type HexPatternsType = {
 };
 
 export type ActionsType = "pull" | "line" | "ring" | "select" | "collect";
+
+export type PowerupType = {
+    effect: PowerupEffectType;
+    level: number;
+    location: {
+        isOnBoard: boolean;
+        consumableIndex: number | null;
+        lastingIndex: number | null;
+        permanentIndex: number | null;
+    }
+};
+
+export type PowerupEffectType = "bomb" | "cut" | "turns" | "rotate" | "swap" | "clear" | "unknown";

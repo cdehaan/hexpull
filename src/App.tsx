@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import DirectionSelector from "./components/DirectionSelector";
-import { ActionsType, HexPatternsType, HexType } from "./types";
+import { ActionsType, HexPatternsType, HexType, PowerupEffectType } from "./types";
 import { getNeighborCoords, getNeighborHex, getNeighborPattern } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
 
@@ -28,13 +28,13 @@ const HexGrid: React.FC = () => {
       x: i % NUMBER_OF_COLUMNS,
       y: Math.floor(i / NUMBER_OF_COLUMNS),
       color: Math.floor(Math.random() * colors.length),
+      powerup: null,
       removedIndex: null,
       isQueuedForCollection: false,
     }))
   );
 
-  //const [hexPatterns, setHexPatterns] = useState<HexPatternsType[]>([]);
-  const hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
+  let hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
 
   const hexRefs = useRef<SVGPolygonElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
@@ -91,6 +91,7 @@ const HexGrid: React.FC = () => {
           x: currentX,
           y: currentY,
           color: Math.floor(Math.random() * colors.length),
+          powerup: null,
           removedIndex: null,
           isQueuedForCollection: false,
         };
@@ -119,17 +120,20 @@ const HexGrid: React.FC = () => {
   };
 
   const collectPatterns = (hex: HexType) => {
+    console.log("Collecting patterns Hex");
+    console.log(hex);
     if(hex.x === null || hex.y === null) return; // could be a removed hex, don't collect patterns from those (should never happen anyway)
 
     const hexPattern = hexPatterns.find((pattern) => pattern.index === hex.index);
     if (!hexPattern) return;
+    console.log(hexPattern);
     if (hexPattern.lines.length === 0 && hexPattern.loop === null && hexPattern.core === null) {
       console.log("No pattern detected");
       return;
     }
-    console.log(hexPattern);
 
     // This hex is part of (at least) one line
+    // Lines collapse into a single hex, and that hex is a powerup
     if (hexPattern.lines.length > 0) {
 
       // All the lines this hex is part of
@@ -137,12 +141,51 @@ const HexGrid: React.FC = () => {
       collectLineHex(hex, lineIndexes, {x: hex.x, y: hex.y});
     }
 
+    // Loops vanish but don't become anything. Any core within a loop becomes a lasting or permanent powerup
     if (hexPattern.loop) {
       console.log("Loop detected");
     }
 
+    // Cores become lasting or permanent powerups (items at the bottom of the screen)
     if (hexPattern.core) {
       console.log("Core detected");
+    }
+
+    // Clear the hexes that are queued for collection
+    // Place on-board powerups for cleared lines
+    if (hexPattern.lines.length > 0) {
+      setHexes((prev) =>
+        prev.map((newHex) => {
+          if (newHex.index === hex.index) {
+            let powerupEffect:PowerupEffectType;
+            switch (hex.color) {
+              case 1:  powerupEffect = "bomb";   break;
+              case 2:  powerupEffect = "cut";    break;
+              case 3:  powerupEffect = "turns";  break;
+              case 4:  powerupEffect = "rotate"; break;
+              case 5:  powerupEffect = "swap";   break;
+              case 6:  powerupEffect = "clear";  break;
+              default: powerupEffect = "unknown";
+            }
+            const powerup = {
+              effect: powerupEffect,
+              level: 1,
+              location: {
+                isOnBoard: true,
+                consumableIndex: null,
+                lastingIndex: null,
+                permanentIndex: null,
+              },
+            };
+            return {
+              ...newHex,
+              powerup: powerup,
+              isQueuedForCollection: false,
+            };
+          }
+          return newHex;
+        })
+      );
     }
   };
 
@@ -162,6 +205,7 @@ const HexGrid: React.FC = () => {
       }
     });
   }
+
   useEffect(() => {
     const removedTiles = hexes
       .filter((tile) => tile.removedIndex !== null)
@@ -179,6 +223,8 @@ const HexGrid: React.FC = () => {
         }
       }
     });
+
+    hexPatterns = detectLinesAndLoops(hexes);
   }, [hexes]);
 
   const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH; // +2 is for the stack of used tiles on the right, it's 0.5 more than it needs to be
@@ -207,6 +253,7 @@ const HexGrid: React.FC = () => {
           const lineCount = hexPattern ? hexPattern.lines.length : 0;
           const isLoop = hexPattern && hexPattern.loop;
           const isCore = hexPattern && hexPattern.core;
+          const isPowerup = hex.powerup !== null;
           const strokeOpacity = isEdge ? 0.8 : 1;
           const displayIndex = true;
           return (
@@ -228,7 +275,7 @@ const HexGrid: React.FC = () => {
                 y={(hex.y ?? 0) * (ROW_HEIGHT) + (HEX_HEIGHT / (evenColumn ? 1 : 2))}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill={isEdge ? "#999" : "white"}
+                fill={isPowerup ? "#000" : isEdge ? "#999" : "white"}
                 style={{ pointerEvents: "none", fontSize: isLoop ? "14px" : "10px" , fontWeight: "bold" }}
               >
                 {displayIndex ? hex.index.toString() : ""}
