@@ -9,8 +9,9 @@ export type HexType = {
 };
 
 export type LinePointType = {
-    lineIndex: number;
+    lineId: number;
     step: number;
+    length: number;
 };
 
 export type HexPatternsType = {

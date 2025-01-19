@@ -12,7 +12,7 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
     }));
 
     // Detect lines
-    let lineIndex = 0;
+    let lineId = 0;
     const directions = [
       1, // Vertical
       2, // Up-right
@@ -63,9 +63,9 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
 
         if (count >= 5) {
           //console.log("Line detected", line);
-          line.forEach((lineHex, index) => (lineHex.lines.push({lineIndex: lineIndex, step: index})));
+          line.forEach((lineHex, index) => (lineHex.lines.push({lineId: lineId, step: index, length: count})));
           //line.forEach((lineHex) => {if(lineHex.line.length > 1) console.log("Double line detected", lineHex)});
-          lineIndex++;
+          lineId++;
         }
       });
     });
