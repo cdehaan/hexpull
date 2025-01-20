@@ -138,6 +138,7 @@ const HexGrid: React.FC = () => {
 
       // All the lines this hex is a part of will be removed.
       // Set all the hexes in those lines to be queued for collection
+      // Then set the selected line hex as a power-up, which undoes the queue for collection
       const lineIds = hexPattern.lines.map((line) => line.lineId);
       queueLineHexes(lineIds);
       placePowerup(hex, hexPattern);
