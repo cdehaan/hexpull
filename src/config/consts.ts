@@ -1,0 +1,13 @@
+export const BOARD_MARGIN = 8;
+export const REMOVED_HEXES_MARGIN = 8;
+export const NUMBER_OF_COLUMNS = 7;
+export const NUMBER_OF_ROWS = 12;
+export const HEX_HEIGHT = 40;
+export const HEX_MARGIN = 8;
+export const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
+export const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
+export const COLUMN_WIDTH = HEX_WIDTH * 0.75 + HEX_MARGIN; // Width of a column
+export const ROW_HEIGHT = HEX_HEIGHT + HEX_MARGIN; // Height of a row
+export const opacity = 0.75;
+//export const colors = ["red", "blue", "gray", "yellow", "purple"];
+export const colors = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];

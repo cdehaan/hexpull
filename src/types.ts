@@ -1,11 +1,17 @@
 export type HexType = {
     index: number;
-    x: number | null;
-    y: number | null;
+    ref: React.RefObject<SVGGElement>;
     color: number;
+    restingLocation: {x: number, y: number} | null;
     powerup: PowerupType | null;
     removedIndex: number | null;
     isQueuedForCollection: boolean;
+
+    animatedValue: number | null;
+    animationStartTime: number | null;
+    opacityInterpolator: ((progress: number) => number) | null;
+    positionInterpolator: ((progress: number) => {x: number, y: number}) | null;
+    startingLocation: {x: number, y: number} | null;
 };
 
 export type LinePointType = {

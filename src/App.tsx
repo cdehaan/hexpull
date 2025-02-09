@@ -1,22 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, createRef } from "react";
 import DirectionSelector from "./components/DirectionSelector";
 import { ActionsType, HexPatternsType, HexType, PowerupEffectType } from "./types";
 import { getNeighborCoords } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
-
-const BOARD_MARGIN = 8;
-const REMOVED_HEXES_MARGIN = 8;
-const NUMBER_OF_COLUMNS = 7;
-const NUMBER_OF_ROWS = 12;
-const HEX_HEIGHT = 40;
-const HEX_MARGIN = 8;
-const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
-const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
-const COLUMN_WIDTH = HEX_WIDTH * 0.75 + HEX_MARGIN; // Width of a column
-const ROW_HEIGHT = HEX_HEIGHT + HEX_MARGIN; // Height of a row
-const opacity = 0.75;
-//const colors = ["red", "blue", "gray", "yellow", "purple"];
-const colors = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];
+import { BOARD_MARGIN, REMOVED_HEXES_MARGIN, NUMBER_OF_COLUMNS, NUMBER_OF_ROWS, HEX_HEIGHT, HEX_WIDTH, COLUMN_WIDTH, ROW_HEIGHT, colors } from "./config/consts";
 
 const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
@@ -26,12 +13,18 @@ const HexGrid: React.FC = () => {
   const [hexes, setHexes] = useState<HexType[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, (_, i) => ({
       index: i,
-      x: i % NUMBER_OF_COLUMNS,
-      y: Math.floor(i / NUMBER_OF_COLUMNS),
+      ref: createRef<SVGGElement>(),
       color: Math.floor(Math.random() * colors.length),
+      restingLocation: { x: i % NUMBER_OF_COLUMNS, y: Math.floor(i / NUMBER_OF_COLUMNS) },
       powerup: null,
       removedIndex: null,
       isQueuedForCollection: false,
+
+      animatedValue: null,
+      animationStartTime: null,
+      opacityInterpolator: null,
+      positionInterpolator: null,
+      startingLocation: null,
     }))
   );
 
@@ -41,10 +34,6 @@ const HexGrid: React.FC = () => {
   //  Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
   //);
 
-  const hexRefs = useRef<SVGGElement[] | null[]>(
-    Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
-  );
-
   const moveHex = (index: number, newX: number, newY: number) => {
     setHexes((prev) =>
       prev.map((loc) => (loc.index === index ? { ...loc, x: newX, y: newY } : loc))
@@ -52,7 +41,7 @@ const HexGrid: React.FC = () => {
   };
 
   const findHexIndex = (x: number, y: number): number | null => {
-    const index = hexes.findIndex((loc) => loc.x === x && loc.y === y);
+    const index = hexes.findIndex((loc) => loc.restingLocation && loc.restingLocation.x === x && loc.restingLocation.y === y);
     return index !== -1 ? index : null;
   };
 
@@ -65,14 +54,15 @@ const HexGrid: React.FC = () => {
   };
 
   const removeHex = (hex: HexType) => {
-    const { x, y, index } = hex;
+    const { restingLocation, index } = hex;
+    if (!restingLocation) return;
+    const { x, y } = restingLocation;
     if(x === null || y === null) return;
     setHexes((prev) => {
       const updated = [...prev];
       updated[index] = {
         ...updated[index],
-        x: null,
-        y: null,
+        restingLocation: null,
         removedIndex: prev.filter((loc) => loc.removedIndex !== null).length,
       };
       return updated;
@@ -93,12 +83,18 @@ const HexGrid: React.FC = () => {
       if (neighborIndex === null) {
         const newTile: HexType = {
           index: hexes.length,
-          x: currentX,
-          y: currentY,
+          ref: createRef<SVGGElement>(),
           color: Math.floor(Math.random() * colors.length),
+          restingLocation: { x: currentX, y: currentY },
           powerup: null,
           removedIndex: null,
           isQueuedForCollection: false,
+
+          animatedValue: null,
+          animationStartTime: null,
+          opacityInterpolator: null,
+          positionInterpolator: null,
+          startingLocation: null,
         };
         setHexes((prev) => [...prev, newTile]);
         break;
@@ -127,7 +123,7 @@ const HexGrid: React.FC = () => {
   const collectPatterns = (hex: HexType) => {
     console.log("Collecting patterns Hex");
     console.log(hex);
-    if(hex.x === null || hex.y === null || hex.removedIndex !== null) return; // could be a removed hex, don't collect patterns from those (should never happen anyway)
+    if(hex.restingLocation === null || hex.restingLocation.x === null || hex.restingLocation.y === null || hex.removedIndex !== null) return; // could be a removed hex, don't collect patterns from those (should never happen anyway)
 
     const hexPattern = hexPatterns.find((pattern) => pattern.index === hex.index);
     if (!hexPattern) return;
@@ -209,11 +205,11 @@ const HexGrid: React.FC = () => {
       .filter((tile) => tile.removedIndex !== null)
       .sort((a, b) => (a.removedIndex! - b.removedIndex!));
     hexes.forEach((hex) => {
-      const hexRef = hexRefs.current[hex.index];
+      const hexRef = hex.ref.current;
       if (hexRef) {
-        if (hex.x !== null && hex.y !== null) {
-          const xPos = hex.x * COLUMN_WIDTH + HEX_WIDTH * 1 + BOARD_MARGIN + REMOVED_HEXES_MARGIN;
-          const yPos = hex.y * ROW_HEIGHT + (hex.x % 2 === 0 ? ROW_HEIGHT / 2 : 0);
+        if (hex.restingLocation !== null && hex.restingLocation.x !== null && hex.restingLocation.y !== null) {
+          const xPos = hex.restingLocation.x * COLUMN_WIDTH + HEX_WIDTH * 1 + BOARD_MARGIN + REMOVED_HEXES_MARGIN;
+          const yPos = hex.restingLocation.y * ROW_HEIGHT + (hex.restingLocation.x % 2 === 0 ? ROW_HEIGHT / 2 : 0);
           hexRef.setAttribute("transform", `translate(${xPos}, ${yPos})`);
         } else {
           const xOffset = BOARD_MARGIN;
@@ -264,7 +260,7 @@ const HexGrid: React.FC = () => {
           return (
             <g
               key={hex.index}
-              ref={(el) => (hexRefs.current[hex.index] = el)}
+              ref={hex.ref}
               style={{ transition: "transform 0.3s ease" }}
             >
               <polygon
@@ -295,19 +291,23 @@ const HexGrid: React.FC = () => {
         {removedHexes
           .sort((a, b) => (a.removedIndex! - b.removedIndex!))
           .map((hex, pileIndex) => (
-            <polygon
+            <g
               key={hex.index}
-              ref={(el) => (hexRefs.current[hex.index] = el)}
-              points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
-              style={{
-                fill: colors[hex.color],
-                stroke: "black",
-                strokeWidth: "1px",
-                cursor: "pointer",
-                transition: "transform 0.3s ease",
-                filter: pileIndex % 2 === 1 ? "drop-shadow(0 0 2px white)" : undefined,
-              }}
-            />
+              ref={hex.ref}
+              style={{ transition: "transform 0.3s ease" }}
+            >
+              <polygon
+                points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
+                style={{
+                  fill: colors[hex.color],
+                  stroke: "black",
+                  strokeWidth: "1px",
+                  cursor: "pointer",
+                  transition: "transform 0.3s ease",
+                  filter: pileIndex % 2 === 1 ? "drop-shadow(0 0 2px white)" : undefined,
+                }}
+              />
+            </g>
           ))}
       </svg>
     </>
