@@ -4,10 +4,12 @@ import { ActionsType, HexPatternsType, HexType, PowerupEffectType } from "./type
 import { getNeighborCoords } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
 
+const BOARD_MARGIN = 8;
+const REMOVED_HEXES_MARGIN = 8;
 const NUMBER_OF_COLUMNS = 7;
 const NUMBER_OF_ROWS = 12;
 const HEX_HEIGHT = 40;
-const HEX_MARGIN = 2;
+const HEX_MARGIN = 8;
 const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
 const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
 const COLUMN_WIDTH = HEX_WIDTH * 0.75 + HEX_MARGIN; // Width of a column
@@ -35,7 +37,11 @@ const HexGrid: React.FC = () => {
 
   let hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
 
-  const hexRefs = useRef<SVGPolygonElement[] | null[]>(
+  //const polygonRefs = useRef<SVGPolygonElement[] | null[]>(
+  //  Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
+  //);
+
+  const hexRefs = useRef<SVGGElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
   );
 
@@ -205,12 +211,13 @@ const HexGrid: React.FC = () => {
       const hexRef = hexRefs.current[hex.index];
       if (hexRef) {
         if (hex.x !== null && hex.y !== null) {
-          const xPos = hex.x * COLUMN_WIDTH + HEX_WIDTH * 1;
+          const xPos = hex.x * COLUMN_WIDTH + HEX_WIDTH * 1 + BOARD_MARGIN + REMOVED_HEXES_MARGIN;
           const yPos = hex.y * ROW_HEIGHT + (hex.x % 2 === 0 ? ROW_HEIGHT / 2 : 0);
           hexRef.setAttribute("transform", `translate(${xPos}, ${yPos})`);
         } else {
+          const xOffset = BOARD_MARGIN;
           const yOffset = removedTiles.findIndex((tile) => tile.removedIndex === hex.removedIndex) * HEX_HEIGHT * 0.67;
-          hexRef.setAttribute("transform", `translate(0, ${yOffset})`);
+          hexRef.setAttribute("transform", `translate(${xOffset}, ${yOffset})`);
         }
       }
     });
@@ -223,6 +230,8 @@ const HexGrid: React.FC = () => {
 
   const fieldHexes = hexes.filter((hex) => hex.removedIndex === null);
   const removedHexes = hexes.filter((hex) => hex.removedIndex !== null);
+
+  const hexPoints = `0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`;
 
   return (
     <>
@@ -238,7 +247,6 @@ const HexGrid: React.FC = () => {
       >
         {fieldHexes.map((hex) => {
           const hexPattern = hexPatterns?.find((pattern) => pattern.index === hex.index);
-          const evenColumn = hex.x! % 2 === 0;
           const isEdge = hexPattern && hexPattern.edge;
           const isLine = hexPattern && hexPattern.lines.length > 0;
           const lineCount = hexPattern ? hexPattern.lines.length : 0;
@@ -248,28 +256,34 @@ const HexGrid: React.FC = () => {
           const isQueued = hex.isQueuedForCollection;
           const strokeOpacity = isEdge ? 0.8 : 1;
           const displayIndex = true;
+
+          const textX = HEX_WIDTH / 2;
+          const textY = HEX_HEIGHT / 2;
+
           return (
-            <g key={hex.index}>
+            <g
+              key={hex.index}
+              ref={(el) => (hexRefs.current[hex.index] = el)}
+              style={{ transition: "transform 0.3s ease" }}
+            >
               <polygon
-                ref={(el) => (hexRefs.current[hex.index] = el)}
-                points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
+                points={hexPoints}
                 style={{
                   fill: colors[hex.color],
                   stroke: (isLine && isCore) ? `rgba(128,255,128,${strokeOpacity})` : isLine ? `rgba(0,255,0,${strokeOpacity})` : isCore ? `rgba(255,255,255,${strokeOpacity})` : isLoop ? colors[hex.color] : `rgba(0,0,0,${strokeOpacity})`,
                   strokeWidth: isCore ? "10px" : `${lineCount*3}px`,
                   cursor: "pointer",
-                  transition: "transform 0.3s ease",
                   opacity: isQueued ? 0.5 : 1,
                 }}
                 onClick={() => handleHexClick(hex)}
               />
               <text
-                x={((hex.x ?? 0) + 1.9) * (COLUMN_WIDTH)}
-                y={(hex.y ?? 0) * (ROW_HEIGHT) + (HEX_HEIGHT / (evenColumn ? 1 : 2))}
+                x={textX}
+                y={textY}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill={isPowerup ? "#000" : isEdge ? "#999" : "white"}
-                style={{ pointerEvents: "none", fontSize: isLoop ? "14px" : "10px" , fontWeight: "bold" }}
+                style={{ pointerEvents: "none", fontSize: isLoop ? "14px" : "10px", fontWeight: "bold" }}
                 opacity={isQueued ? 0.5 : 1}
               >
                 {displayIndex ? hex.index.toString() : ""}
@@ -280,20 +294,20 @@ const HexGrid: React.FC = () => {
         {removedHexes
           .sort((a, b) => (a.removedIndex! - b.removedIndex!))
           .map((hex, pileIndex) => (
-          <polygon
-            key={hex.index}
-            ref={(el) => (hexRefs.current[hex.index] = el)}
-            points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
-            style={{
-              fill: colors[hex.color],
-              stroke: "black",
-              strokeWidth: "1px",
-              cursor: "pointer",
-              transition: "transform 0.3s ease",
-              filter: pileIndex%2 === 1 ? "drop-shadow(0 0 2px white)" : undefined, 
-            }}
-          />
-        ))}
+            <polygon
+              key={hex.index}
+              ref={(el) => (hexRefs.current[hex.index] = el)}
+              points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
+              style={{
+                fill: colors[hex.color],
+                stroke: "black",
+                strokeWidth: "1px",
+                cursor: "pointer",
+                transition: "transform 0.3s ease",
+                filter: pileIndex % 2 === 1 ? "drop-shadow(0 0 2px white)" : undefined,
+              }}
+            />
+          ))}
       </svg>
     </>
   );
