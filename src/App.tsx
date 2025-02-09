@@ -4,6 +4,7 @@ import { ActionsType, HexPatternsType, HexType, PowerupEffectType } from "./type
 import { getNeighborCoords } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
 import { BOARD_MARGIN, REMOVED_HEXES_MARGIN, NUMBER_OF_COLUMNS, NUMBER_OF_ROWS, HEX_HEIGHT, HEX_WIDTH, COLUMN_WIDTH, ROW_HEIGHT, colors } from "./config/consts";
+import { HexTile } from "./components/HexTile";
 
 const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
@@ -30,13 +31,9 @@ const HexGrid: React.FC = () => {
 
   let hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
 
-  //const polygonRefs = useRef<SVGPolygonElement[] | null[]>(
-  //  Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
-  //);
-
   const moveHex = (index: number, newX: number, newY: number) => {
     setHexes((prev) =>
-      prev.map((loc) => (loc.index === index ? { ...loc, x: newX, y: newY } : loc))
+      prev.map((hex) => (hex.index === index ? { ...hex, restingLocation: {x: newX, y: newY }} : hex))
     );
   };
 
@@ -55,9 +52,15 @@ const HexGrid: React.FC = () => {
 
   const removeHex = (hex: HexType) => {
     const { restingLocation, index } = hex;
-    if (!restingLocation) return;
+    if (!restingLocation) {
+      console.log("This hex is not on the board in removeHex");
+      return;
+    }
     const { x, y } = restingLocation;
-    if(x === null || y === null) return;
+    if(x === null || y === null) {
+      console.log("This hex has no x or y in removeHex");
+      return;
+    }
     setHexes((prev) => {
       const updated = [...prev];
       updated[index] = {
@@ -76,10 +79,10 @@ const HexGrid: React.FC = () => {
     let currentY = y;
 
     while (true) {
-      const neighbor = getNeighborCoords(currentX, currentY, direction);
-      if (!neighbor) break;
+      const neighborCords = getNeighborCoords(currentX, currentY, direction);
+      if (!neighborCords) break;
 
-      const neighborIndex = findHexIndex(neighbor.x, neighbor.y);
+      const neighborIndex = findHexIndex(neighborCords.x, neighborCords.y);
       if (neighborIndex === null) {
         const newTile: HexType = {
           index: hexes.length,
@@ -102,8 +105,8 @@ const HexGrid: React.FC = () => {
 
       moveHex(neighborIndex, currentX, currentY);
 
-      currentX = neighbor.x;
-      currentY = neighbor.y;
+      currentX = neighborCords.x;
+      currentY = neighborCords.y;
       steps++;
 
       // When spiraling out, if you've moved the length of the current line, it's time to change direction, and maybe the next line will be longer
@@ -220,15 +223,17 @@ const HexGrid: React.FC = () => {
     });
 
     hexPatterns = detectLinesAndLoops(hexes);
+    console.log("hexPatterns");
+    console.log(hexPatterns);
+    console.log("hexes");
+    console.log(hexes);
   }, [hexes]);
 
   const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH; // +2 is for the stack of used tiles on the right, it's 0.5 more than it needs to be
   const totalHeight = (1 + NUMBER_OF_ROWS) * ROW_HEIGHT; // +1 is for the stagger of tiles in a row, it's 0.5 more than it needs to be
 
-  const fieldHexes = hexes.filter((hex) => hex.removedIndex === null);
-  const removedHexes = hexes.filter((hex) => hex.removedIndex !== null);
-
-  const hexPoints = `0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`;
+//  const fieldHexes = hexes.filter((hex) => hex.removedIndex === null);
+//  const removedHexes = hexes.filter((hex) => hex.removedIndex !== null);
 
   return (
     <>
@@ -242,73 +247,13 @@ const HexGrid: React.FC = () => {
         viewBox={`0 0 ${totalWidth} ${totalHeight}`}
         style={{ position: "relative", margin: "1rem" }}
       >
-        {fieldHexes.map((hex) => {
+        {hexes
+          .sort((a, b) => ((a.removedIndex || 0) - (b.removedIndex || 0)))
+          .map((hex) => {
           const hexPattern = hexPatterns?.find((pattern) => pattern.index === hex.index);
-          const isEdge = hexPattern && hexPattern.edge;
-          const isLine = hexPattern && hexPattern.lines.length > 0;
-          const lineCount = hexPattern ? hexPattern.lines.length : 0;
-          const isLoop = hexPattern && hexPattern.loop;
-          const isCore = hexPattern && hexPattern.core;
-          const isPowerup = hex.powerup !== null;
-          const isQueued = hex.isQueuedForCollection;
-          const strokeOpacity = isEdge ? 0.8 : 1;
-          const displayIndex = true;
-
-          const textX = HEX_WIDTH / 2;
-          const textY = HEX_HEIGHT / 2;
-
-          return (
-            <g
-              key={hex.index}
-              ref={hex.ref}
-              style={{ transition: "transform 0.3s ease" }}
-            >
-              <polygon
-                points={hexPoints}
-                style={{
-                  fill: colors[hex.color],
-                  stroke: (isLine && isCore) ? `rgba(128,255,128,${strokeOpacity})` : isLine ? `rgba(0,255,0,${strokeOpacity})` : isCore ? `rgba(255,255,255,${strokeOpacity})` : isLoop ? colors[hex.color] : `rgba(0,0,0,${strokeOpacity})`,
-                  strokeWidth: isCore ? "10px" : `${lineCount*3}px`,
-                  cursor: "pointer",
-                  opacity: isQueued ? 0.5 : 1,
-                }}
-                onClick={() => handleHexClick(hex)}
-              />
-              <text
-                x={textX}
-                y={textY}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill={isPowerup ? "#000" : isEdge ? "#999" : "white"}
-                style={{ pointerEvents: "none", fontSize: isLoop ? "14px" : "10px", fontWeight: "bold" }}
-                opacity={isQueued ? 0.5 : 1}
-              >
-                {displayIndex ? hex.index.toString() : ""}
-              </text>
-            </g>
-          );
+          if (!hexPattern) return null;
+          return <HexTile key={hex.index} hex={hex} hexPattern={hexPattern} handleHexClick={handleHexClick} />
         })}
-        {removedHexes
-          .sort((a, b) => (a.removedIndex! - b.removedIndex!))
-          .map((hex, pileIndex) => (
-            <g
-              key={hex.index}
-              ref={hex.ref}
-              style={{ transition: "transform 0.3s ease" }}
-            >
-              <polygon
-                points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
-                style={{
-                  fill: colors[hex.color],
-                  stroke: "black",
-                  strokeWidth: "1px",
-                  cursor: "pointer",
-                  transition: "transform 0.3s ease",
-                  filter: pileIndex % 2 === 1 ? "drop-shadow(0 0 2px white)" : undefined,
-                }}
-              />
-            </g>
-          ))}
       </svg>
     </>
   );

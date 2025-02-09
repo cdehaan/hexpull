@@ -13,10 +13,12 @@ export const getNeighborCoords = (x: number, y: number, direction: number): { x:
     }
   };
 
-export const getNeighborHex = (x: number, y: number, direction: number, hexes: HexType[]): HexType | null => {
+export const getNeighborHex = (x: number | null, y: number | null, direction: number, hexes: HexType[]): HexType | null => {
+  if (x === null || y === null) return null;
   const coords = getNeighborCoords(x, y, direction);
   if (!coords) return null;
-  return hexes.find((loc) => loc.restingLocation !== null && loc.restingLocation.x === coords.x && loc.restingLocation.y === coords.y) || null;
+  const hex = hexes.find((loc) => loc.restingLocation !== null && loc.restingLocation.x === coords.x && loc.restingLocation.y === coords.y) || null;
+  return hex;
 }
 
 export const getNeighborPattern = (x: number, y: number, direction: number, hexes: HexType[], hexPatterns: HexPatternsType[]): HexPatternsType | null => {
@@ -25,17 +27,17 @@ export const getNeighborPattern = (x: number, y: number, direction: number, hexe
   const hex = hexes.find((loc) => loc.restingLocation !== null && loc.restingLocation.x === coords.x && loc.restingLocation.y === coords.y) || null;
   if (!hex) return null;
   return hexPatterns.find((pattern) => pattern.index === hex.index) || null;
-} 
+}
 
 export const getEdgeHexes = (hexes: HexType[]): HexType[] => {
   return hexes
     .filter(hex => hex.removedIndex === null)
     .map((hex) => {
       if (hex.restingLocation === null) return null; // this is a hex not on the board (likely removed) so it's not an edge
-      if (hex.restingLocation.x === null || hex.restingLocation.y === null) return hex; // this is a hex without an x or y so it's not on the board so it's not an edge
+      if (hex.restingLocation.x === null || hex.restingLocation.y === null) return null; // this is a hex without an x or y so it's not on the board so it's not an edge
       const hexNeighbors = [1, 2, 3, 4, 5, 6].map((direction) => {
         if(hex.restingLocation === null || hex.restingLocation.x === null || hex.restingLocation.y === null) return null; // a check for typescript, should never happen
-        getNeighborHex(hex.restingLocation.x, hex.restingLocation.y, direction, hexes)
+        return getNeighborHex(hex.restingLocation.x, hex.restingLocation.y, direction, hexes)
       });
       if (hexNeighbors.some((hexes) => hexes === null)) return hex;
       return null;

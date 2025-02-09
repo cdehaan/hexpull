@@ -21,10 +21,10 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
 
     detectedHexPatterns.forEach((hexPattern) => {
       const currentHex = hexes.find((h) => h.index === hexPattern.index);
-      if (!currentHex) return;
+      if (!currentHex || currentHex.restingLocation === null) return;
 
       directions.forEach((direction) => {
-        if (currentHex.x === null || currentHex.y === null) return;
+        if (currentHex.restingLocation === null || currentHex.restingLocation.x === null || currentHex.restingLocation.y === null) return;
         let count = 1;
         let line = [hexPattern];
         let lineColor = currentHex.color;
@@ -33,11 +33,11 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
         let neighborHex;
 
         // Skip if the line is already detected from a hex further back in this direction
-        const backwardsneighbor = getNeighborHex(currentHex.x, currentHex.y, direction + 3, hexes);
+        const backwardsneighbor = getNeighborHex(currentHex.restingLocation.x, currentHex.restingLocation.y, direction + 3, hexes);
         if (backwardsneighbor && backwardsneighbor.color === lineColor) return;
 
-        let x = currentHex.x;
-        let y = currentHex.y;
+        let x = currentHex.restingLocation.x;
+        let y = currentHex.restingLocation.y;
         while (true) {
           if(x === null || y === null) break;
 
@@ -46,7 +46,7 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
           x = neighborCoords.x;
           y = neighborCoords.y;
 
-          neighborIndex = hexes.findIndex((loc) => loc.x === x && loc.y === y);
+          neighborIndex = hexes.findIndex((loc) => loc.restingLocation !== null && loc.restingLocation.x === x && loc.restingLocation.y === y);
           if (neighborIndex === null) break;
 
           neighborHex = hexes.find((h) => h.index === neighborIndex);
@@ -88,10 +88,10 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
     });
 
     const walkNeighbors = (hex: HexType, color: number, detectedHexPatterns: HexPatternsType[], hexes: HexType[]) => {
-      if (hex.x === null || hex.y === null) return; // Should never happen
+      if (hex.restingLocation === null || hex.restingLocation.x === null || hex.restingLocation.y === null) return; // Check to make Typescript happy
 
       for (let direction = 1; direction <= 6; direction++) {
-          const neighbor = getNeighborHex(hex.x, hex.y, direction, hexes);
+          const neighbor = getNeighborHex(hex.restingLocation.x, hex.restingLocation.y, direction, hexes);
           if (!neighbor) continue; // If no neighbor exists, skip. Happens on the edge
 
           const neighborPattern = detectedHexPatterns.find((pattern) => pattern.index === neighbor.index);
@@ -108,7 +108,7 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
 
   for (const color of colors) {
     for (const edgeHex of edgeHexes) {
-        if (edgeHex.x === null || edgeHex.y === null) continue;
+        if (edgeHex.restingLocation === null || edgeHex.restingLocation.x === null || edgeHex.restingLocation.y === null) continue;
 
         const currentPattern = detectedHexPatterns.find((pattern) => pattern.index === edgeHex.index);
         if (!currentPattern) continue;
@@ -127,13 +127,17 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
     }
   }
 
+  for (const hexPattern of detectedHexPatterns) {
+    if (hexPattern.core === null) hexPattern.core = false;
+  }
+
   // Detect loops
   const cores = detectedHexPatterns.filter((hexPattern) => hexPattern.core === true);
   for (const core of cores) {
     const coreHex = hexes.find((hex) => hex.index === core.index);
     if (!coreHex) continue;
 
-    const coreNeighbors = [1, 2, 3, 4, 5, 6].map((direction) => getNeighborHex(coreHex.x!, coreHex.y!, direction, hexes));
+    const coreNeighbors = [1, 2, 3, 4, 5, 6].map((direction) => coreHex.restingLocation ? getNeighborHex(coreHex.restingLocation.x, coreHex.restingLocation.y, direction, hexes) : null);
     const coreNeighborsPatterns = coreNeighbors.map((neighbor) => detectedHexPatterns.find((pattern) => pattern.index === neighbor?.index));
 
     for (const pattern of coreNeighborsPatterns) {
