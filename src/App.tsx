@@ -29,13 +29,9 @@ const HexGrid: React.FC = () => {
     }))
   );
 
-  let hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
+  const [hexPatterns, setHexPatterns] = useState<HexPatternsType[]>(detectLinesAndLoops(hexes));
 
-  const moveHex = (index: number, newX: number, newY: number) => {
-    setHexes((prev) =>
-      prev.map((hex) => (hex.index === index ? { ...hex, restingLocation: {x: newX, y: newY }} : hex))
-    );
-  };
+  console.log(hexes);
 
   const findHexIndex = (x: number, y: number): number | null => {
     const index = hexes.findIndex((loc) => loc.restingLocation && loc.restingLocation.x === x && loc.restingLocation.y === y);
@@ -57,70 +53,101 @@ const HexGrid: React.FC = () => {
       return;
     }
     const { x, y } = restingLocation;
-    if(x === null || y === null) {
+    if (x === null || y === null) {
       console.log("This hex has no x or y in removeHex");
       return;
     }
-    setHexes((prev) => {
-      const updated = [...prev];
-      updated[index] = {
-        ...updated[index],
+  
+    // Batch all changes into a single update of hexes
+    setHexes((prevHexes) => {
+      // Make a shallow copy of the previous state
+      let updatedHexes = [...prevHexes];
+
+      const hexToRemove = updatedHexes.find((h) => h.index === index);
+      if (!hexToRemove) {
+        console.log("Hex to remove not found in removeHex");
+        return updatedHexes;
+      }
+
+      // Mark the removed hex by setting its restingLocation to null and assigning its removedIndex.
+      const removedCount = updatedHexes.filter((h) => h.removedIndex !== null).length;
+      const newRemovedHex = {
+        ...hexToRemove,
         restingLocation: null,
-        removedIndex: prev.filter((loc) => loc.removedIndex !== null).length,
+        removedIndex: removedCount,
       };
-      return updated;
-    });
+      console.log(`Removing hex ${index} at ${x}, ${y} with removedIndex ${removedCount}`);
+      console.log(newRemovedHex);
 
-    let length = 1;
-    let steps = 0;
-    let direction = initialPullDirection;
-    let grow = false;
-    let currentX = x;
-    let currentY = y;
+      updatedHexes = updatedHexes.filter((h) => h.index !== index);
+      updatedHexes.push(newRemovedHex);
 
-    while (true) {
-      const neighborCords = getNeighborCoords(currentX, currentY, direction);
-      if (!neighborCords) break;
-
-      const neighborIndex = findHexIndex(neighborCords.x, neighborCords.y);
-      if (neighborIndex === null) {
-        const newTile: HexType = {
-          index: hexes.length,
-          ref: createRef<SVGGElement>(),
-          color: Math.floor(Math.random() * colors.length),
+      // Initialize variables for the spiral update logic.
+      let length = 1;
+      let steps = 0;
+      let direction = initialPullDirection;
+      let grow = false;
+      let currentX = x;
+      let currentY = y;
+  
+      while (true) {
+        const neighborCoords = getNeighborCoords(currentX, currentY, direction);
+        if (!neighborCoords) break;
+  
+        // Look for a hex at the neighbor coordinates.
+        const neighborIndex = findHexIndex(neighborCoords.x, neighborCoords.y);
+        if (neighborIndex === null) {
+          // If no hex is found, create a new one at the current position.
+          const newTile: HexType = {
+            index: updatedHexes.length + 1,
+            ref: createRef<SVGGElement>(),
+            color: Math.floor(Math.random() * colors.length),
+            restingLocation: { x: currentX, y: currentY },
+            powerup: null,
+            removedIndex: null,
+            isQueuedForCollection: false,
+            animatedValue: null,
+            animationStartTime: null,
+            opacityInterpolator: null,
+            positionInterpolator: null,
+            startingLocation: null,
+          };
+          updatedHexes.push(newTile);
+          break;
+        }
+  
+        // "Move" the neighbor hex by updating its restingLocation.
+        updatedHexes[neighborIndex] = {
+          ...updatedHexes[neighborIndex],
           restingLocation: { x: currentX, y: currentY },
-          powerup: null,
-          removedIndex: null,
-          isQueuedForCollection: false,
-
-          animatedValue: null,
-          animationStartTime: null,
-          opacityInterpolator: null,
-          positionInterpolator: null,
-          startingLocation: null,
         };
-        setHexes((prev) => [...prev, newTile]);
-        break;
+  
+        // Update the current coordinates to the neighbor's original position.
+        currentX = neighborCoords.x;
+        currentY = neighborCoords.y;
+        steps++;
+
+        // When spiraling out, if you've moved the length of the current line, it's time to change direction, and maybe the next line will be longer
+        // Every other line gets longer, so grow is toggled every time steps reaches length
+        // So this will increase the length of the line in a spiral every other step, and shift the direction of each line one tick, either clockwise or counter-clockwise
+        // If moving straight (i.e. isClockwise === null) the length and grow calculations are still done, but have no effect
+        // Also, when clearing the board from collecting a pattern, the direction is always straight
+        if (steps >= length) {
+          steps = 0;
+          if (grow) length++;
+          grow = !grow;
+          direction =
+            isClockwise === null || tapAction === "collect"
+              ? initialPullDirection
+              : isClockwise === true
+              ? (direction % 6) + 1
+              : ((direction - 2 + 6) % 6) + 1;
+        }
       }
-
-      moveHex(neighborIndex, currentX, currentY);
-
-      currentX = neighborCords.x;
-      currentY = neighborCords.y;
-      steps++;
-
-      // When spiraling out, if you've moved the length of the current line, it's time to change direction, and maybe the next line will be longer
-      // Every other line gets longer, so grow is toggled every time steps reaches length
-      // So this will increase the length of the line in a spiral every other step, and shift the direction of each line one tick, either clockwise or counter-clockwise
-      // If moving straight (i.e. isClockwise === null) the length and grow calculations are still done, but have no effect
-      // Also, when clearing the board from collecting a pattern, the direction is always straight
-      if (steps >= length) {
-        steps = 0;
-        if (grow) length++;
-        grow = !grow;
-        direction = (isClockwise === null || tapAction === "collect") ? initialPullDirection : isClockwise === true ? (direction % 6) + 1 : (direction - 2 + 6) % 6 + 1;
-      }
-    }
+  
+      // Return the fully updated hexes array.
+      return updatedHexes;
+    });
   };
 
   const collectPatterns = (hex: HexType) => {
@@ -222,11 +249,7 @@ const HexGrid: React.FC = () => {
       }
     });
 
-    hexPatterns = detectLinesAndLoops(hexes);
-    console.log("hexPatterns");
-    console.log(hexPatterns);
-    console.log("hexes");
-    console.log(hexes);
+    setHexPatterns(detectLinesAndLoops(hexes));
   }, [hexes]);
 
   const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH; // +2 is for the stack of used tiles on the right, it's 0.5 more than it needs to be

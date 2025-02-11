@@ -51,7 +51,14 @@ export const HexTile: React.FC<HexTilePropsType> = ({ hex, hexPattern, handleHex
         style={{ pointerEvents: "none", fontSize: isLoop ? "14px" : "10px", fontWeight: "bold" }}
         opacity={isQueued ? 0.5 : 1}
       >
-        {displayIndex ? hex.index.toString() : ""}
+        {displayIndex && (
+          <>
+            <tspan x="2em" dy="0em">{hex.index.toString()}</tspan>
+            <tspan x="2em" dy="0.8em">
+              {hex.restingLocation?.x}, {hex.restingLocation?.y}
+            </tspan>
+          </>
+        )}
       </text>
     </g>
   );

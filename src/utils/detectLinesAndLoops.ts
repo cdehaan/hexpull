@@ -38,18 +38,28 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
 
         let x = currentHex.restingLocation.x;
         let y = currentHex.restingLocation.y;
+        let consoleIt = false;
         while (true) {
           if(x === null || y === null) break;
 
           neighborCoords = getNeighborCoords(x, y, direction);
+          if(x === 0 && y === 7) {
+            consoleIt = true;
+          } else {
+            consoleIt = false;
+          }
           if (!neighborCoords) break;
           x = neighborCoords.x;
           y = neighborCoords.y;
 
           neighborIndex = hexes.findIndex((loc) => loc.restingLocation !== null && loc.restingLocation.x === x && loc.restingLocation.y === y);
+          const neighborCount = hexes.filter((loc) => loc.restingLocation !== null && loc.restingLocation.x === x && loc.restingLocation.y === y).length;
+          if (neighborCount > 1) console.log(`Neighbor ${x}, ${y} count ${neighborCount}`);
           if (neighborIndex === null) break;
 
           neighborHex = hexes.find((h) => h.index === neighborIndex);
+          const neighborHexCount = hexes.filter((h) => h.index === neighborIndex).length;
+          if (neighborHexCount > 1) console.log(`Neighbor index ${neighborIndex} count ${neighborHexCount}`);
           if (!neighborHex) break;
 
           if (neighborHex.color === lineColor) {
@@ -62,9 +72,9 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
         }
 
         if (count >= 5) {
-          //console.log("Line detected", line);
+          console.log("Line detected", line);
           line.forEach((lineHex, index) => (lineHex.lines.push({lineId: lineId, step: index, length: count})));
-          //line.forEach((lineHex) => {if(lineHex.line.length > 1) console.log("Double line detected", lineHex)});
+          line.forEach((lineHex) => {if(lineHex.lines.length > 1) console.log("Double line detected", lineHex)});
           lineId++;
         }
       });
