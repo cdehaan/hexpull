@@ -26,20 +26,21 @@ const HexGrid: React.FC = () => {
   const [hexes, setHexes] = useState<HexType[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, (_, i) => ({
       index: i,
-      x: i % NUMBER_OF_COLUMNS,
-      y: Math.floor(i / NUMBER_OF_COLUMNS),
+      restingLocation: { x: i % NUMBER_OF_COLUMNS, y: Math.floor(i / NUMBER_OF_COLUMNS) },
       color: Math.floor(Math.random() * colors.length),
       powerup: null,
       removedIndex: null,
       isQueuedForCollection: false,
+
+      animatedValue: null,
+      animationStartTime: null,
+      opacityInterpolator: null,
+      positionInterpolator: null,
+      startingLocation: null,
     }))
   );
 
   let hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
-
-  //const polygonRefs = useRef<SVGPolygonElement[] | null[]>(
-  //  Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
-  //);
 
   const hexRefs = useRef<SVGGElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
@@ -47,12 +48,12 @@ const HexGrid: React.FC = () => {
 
   const moveHex = (index: number, newX: number, newY: number) => {
     setHexes((prev) =>
-      prev.map((loc) => (loc.index === index ? { ...loc, x: newX, y: newY } : loc))
+      prev.map((loc) => (loc.index === index ? { ...loc, restingLocation: {x: newX, y: newY} } : loc))
     );
   };
 
   const findHexIndex = (x: number, y: number): number | null => {
-    const index = hexes.findIndex((loc) => loc.x === x && loc.y === y);
+    const index = hexes.findIndex((loc) => loc.restingLocation && loc.restingLocation.x === x && loc.restingLocation.y === y);
     return index !== -1 ? index : null;
   };
 
@@ -65,14 +66,15 @@ const HexGrid: React.FC = () => {
   };
 
   const removeHex = (hex: HexType) => {
-    const { x, y, index } = hex;
+    const { restingLocation, index } = hex;
+    if (!restingLocation) return;
+    const { x, y } = restingLocation;
     if(x === null || y === null) return;
     setHexes((prev) => {
       const updated = [...prev];
       updated[index] = {
         ...updated[index],
-        x: null,
-        y: null,
+        restingLocation: null,
         removedIndex: prev.filter((loc) => loc.removedIndex !== null).length,
       };
       return updated;
@@ -93,12 +95,17 @@ const HexGrid: React.FC = () => {
       if (neighborIndex === null) {
         const newTile: HexType = {
           index: hexes.length,
-          x: currentX,
-          y: currentY,
+          restingLocation: { x: currentX, y: currentY },
           color: Math.floor(Math.random() * colors.length),
           powerup: null,
           removedIndex: null,
           isQueuedForCollection: false,
+
+          animatedValue: null,
+          animationStartTime: null,
+          opacityInterpolator: null,
+          positionInterpolator: null,
+          startingLocation: null,
         };
         setHexes((prev) => [...prev, newTile]);
         break;
@@ -127,7 +134,7 @@ const HexGrid: React.FC = () => {
   const collectPatterns = (hex: HexType) => {
     console.log("Collecting patterns Hex");
     console.log(hex);
-    if(hex.x === null || hex.y === null || hex.removedIndex !== null) return; // could be a removed hex, don't collect patterns from those (should never happen anyway)
+    if(hex.restingLocation === null || hex.removedIndex !== null) return; // could be a removed hex, don't collect patterns from those (should never happen anyway)
 
     const hexPattern = hexPatterns.find((pattern) => pattern.index === hex.index);
     if (!hexPattern) return;
@@ -211,9 +218,9 @@ const HexGrid: React.FC = () => {
     hexes.forEach((hex) => {
       const hexRef = hexRefs.current[hex.index];
       if (hexRef) {
-        if (hex.x !== null && hex.y !== null) {
-          const xPos = hex.x * COLUMN_WIDTH + HEX_WIDTH * 1 + BOARD_MARGIN + REMOVED_HEXES_MARGIN;
-          const yPos = hex.y * ROW_HEIGHT + (hex.x % 2 === 0 ? ROW_HEIGHT / 2 : 0);
+        if (hex.restingLocation !== null) {
+          const xPos = hex.restingLocation.x * COLUMN_WIDTH + HEX_WIDTH * 1 + BOARD_MARGIN + REMOVED_HEXES_MARGIN;
+          const yPos = hex.restingLocation.y * ROW_HEIGHT + (hex.restingLocation.x % 2 === 0 ? ROW_HEIGHT / 2 : 0);
           hexRef.setAttribute("transform", `translate(${xPos}, ${yPos})`);
         } else {
           const xOffset = BOARD_MARGIN;
