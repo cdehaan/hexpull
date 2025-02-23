@@ -32,8 +32,9 @@ const HexGrid: React.FC = () => {
       removedIndex: null,
       isQueuedForCollection: false,
 
-      animatedValue: null,
       animationStartTime: null,
+      animationDelay: null,
+      animationDuration: null,
       opacityInterpolator: null,
       positionInterpolator: null,
       startingLocation: null,
@@ -45,13 +46,6 @@ const HexGrid: React.FC = () => {
   const hexRefs = useRef<SVGGElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
   );
-
-  const moveHex = (index: number, newX: number, newY: number) => {
-    startHexAnimation(index, newX, newY, 0, 300);
-//    setHexes((prev) =>
-//      prev.map((loc) => (loc.index === index ? { ...loc, restingLocation: {x: newX, y: newY} } : loc))
-//    );
-  };
 
   const findHexIndex = (x: number, y: number): number | null => {
     const index = hexes.findIndex((loc) => loc.restingLocation && loc.restingLocation.x === x && loc.restingLocation.y === y);
@@ -102,8 +96,9 @@ const HexGrid: React.FC = () => {
           removedIndex: null,
           isQueuedForCollection: false,
 
-          animatedValue: null,
           animationStartTime: null,
+          animationDelay: null,
+          animationDuration: null,
           opacityInterpolator: null,
           positionInterpolator: null,
           startingLocation: null,
@@ -112,7 +107,8 @@ const HexGrid: React.FC = () => {
         break;
       }
 
-      moveHex(neighborIndex, currentX, currentY);
+      startHexAnimation(neighborIndex, currentX, currentY, (length+(grow?0.5:0)) * 1500, 800);
+      //moveHex(neighborIndex, currentX, currentY);
 
       currentX = neighbor.x;
       currentY = neighbor.y;
@@ -145,7 +141,8 @@ const HexGrid: React.FC = () => {
               restingLocation: { x: targetX, y: targetY },
               // Record animation metadata
               animationStartTime: performance.now(),
-              animatedValue: durationMs, // you can also store offset here if you prefer
+              animationDelay: offsetMs,
+              animationDuration: durationMs,
               // Use a custom easing function or a library like d3-ease
               positionInterpolator: (t: number) => t * t * (3 - 2 * t), // example: smoothstep easing
             }
@@ -164,8 +161,7 @@ const HexGrid: React.FC = () => {
       hexRefs.current.forEach((hexRef, i) => {
         const hex = hexes[i];
         if (hex && hex.animationStartTime !== null && hex.startingLocation) {
-          // Use animatedValue as the duration, and assume offsetMs = 0 or read from elsewhere if needed.
-          const duration = hex.animatedValue as number;
+          const duration = hex.animationDuration as number;
           // Optionally, if you want to support an offset, subtract it here:
           const offset = 0; // or a stored offset value
           const elapsed = now - hex.animationStartTime;
@@ -207,7 +203,8 @@ const HexGrid: React.FC = () => {
                 h.index === hex.index
                   ? {
                       ...h,
-                      animatedValue: null,
+                      animationDelay: null,
+                      animationDuration: null,
                       animationStartTime: null,
                       positionInterpolator: null,
                       startingLocation: null,

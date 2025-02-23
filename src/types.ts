@@ -6,8 +6,9 @@ export type HexType = {
     removedIndex: number | null;
     isQueuedForCollection: boolean;
 
-    animatedValue: number | null;
     animationStartTime: number | null;
+    animationDelay: number | null;
+    animationDuration: number | null;
     opacityInterpolator: ((progress: number) => number) | null;
     positionInterpolator: ((progress: number) => number) | null;
     startingLocation: {x: number, y: number} | null;
