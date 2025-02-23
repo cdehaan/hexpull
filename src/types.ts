@@ -9,7 +9,7 @@ export type HexType = {
     animatedValue: number | null;
     animationStartTime: number | null;
     opacityInterpolator: ((progress: number) => number) | null;
-    positionInterpolator: ((progress: number) => {x: number, y: number}) | null;
+    positionInterpolator: ((progress: number) => number) | null;
     startingLocation: {x: number, y: number} | null;
 };
 

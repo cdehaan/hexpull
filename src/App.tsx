@@ -47,9 +47,10 @@ const HexGrid: React.FC = () => {
   );
 
   const moveHex = (index: number, newX: number, newY: number) => {
-    setHexes((prev) =>
-      prev.map((loc) => (loc.index === index ? { ...loc, restingLocation: {x: newX, y: newY} } : loc))
-    );
+    startHexAnimation(index, newX, newY, 0, 300);
+//    setHexes((prev) =>
+//      prev.map((loc) => (loc.index === index ? { ...loc, restingLocation: {x: newX, y: newY} } : loc))
+//    );
   };
 
   const findHexIndex = (x: number, y: number): number | null => {
@@ -131,6 +132,100 @@ const HexGrid: React.FC = () => {
     }
   };
 
+  // When initiating an animation (for example, in moveHex or a similar function):
+  const startHexAnimation = (hexIndex: number, targetX: number, targetY: number, offsetMs = 0, durationMs = 300) => {
+    setHexes((prev) =>
+      prev.map((hex) =>
+        hex.index === hexIndex && hex.restingLocation !== null
+          ? {
+              ...hex,
+              // Record the current position as the starting point (you may need to compute it from the current DOM or state)
+              startingLocation: { ...hex.restingLocation },
+              // Set the new target
+              restingLocation: { x: targetX, y: targetY },
+              // Record animation metadata
+              animationStartTime: performance.now(),
+              animatedValue: durationMs, // you can also store offset here if you prefer
+              // Use a custom easing function or a library like d3-ease
+              positionInterpolator: (t: number) => t * t * (3 - 2 * t), // example: smoothstep easing
+            }
+          : hex
+      )
+    );
+  };
+
+  useEffect(() => {
+    let animationFrame: number;
+  
+    const animate = () => {
+      const now = performance.now();
+  
+      // Update only hexes that are currently animating.
+      hexRefs.current.forEach((hexRef, i) => {
+        const hex = hexes[i];
+        if (hex && hex.animationStartTime !== null && hex.startingLocation) {
+          // Use animatedValue as the duration, and assume offsetMs = 0 or read from elsewhere if needed.
+          const duration = hex.animatedValue as number;
+          // Optionally, if you want to support an offset, subtract it here:
+          const offset = 0; // or a stored offset value
+          const elapsed = now - hex.animationStartTime;
+          let progress = (elapsed - offset) / duration;
+          progress = Math.max(0, Math.min(1, progress)); // Clamp progress between 0 and 1
+
+          // Apply easing to the progress value.
+          const easedProgress = hex.positionInterpolator ? hex.positionInterpolator(progress) : progress;
+
+          // Calculate starting grid coordinates.
+          const startGridX = hex.startingLocation.x;
+          const startGridY = hex.startingLocation.y;
+
+          // Calculate target grid coordinates.
+          const endGridX = hex.restingLocation!.x;
+          const endGridY = hex.restingLocation!.y;
+
+          // Convert the starting grid coordinates to pixel positions.
+          const startPixelX = startGridX * COLUMN_WIDTH + HEX_WIDTH * 1 + BOARD_MARGIN + REMOVED_HEXES_MARGIN;
+          const startPixelY = startGridY * ROW_HEIGHT + (startGridX % 2 === 0 ? ROW_HEIGHT / 2 : 0);
+
+          // Convert the target grid coordinates to pixel positions.
+          const endPixelX = endGridX * COLUMN_WIDTH + HEX_WIDTH * 1 + BOARD_MARGIN + REMOVED_HEXES_MARGIN;
+          const endPixelY = endGridY * ROW_HEIGHT + (endGridX % 2 === 0 ? ROW_HEIGHT / 2 : 0);
+
+          // Interpolate between the starting and target pixel positions.
+          const xPos = startPixelX + (endPixelX - startPixelX) * easedProgress;
+          const yPos = startPixelY + (endPixelY - startPixelY) * easedProgress;
+
+          // Update the transform attribute directly.
+          hexRef?.setAttribute("transform", `translate(${xPos}, ${yPos})`);
+
+
+          // If the animation has finished:
+          if (progress === 1) {
+            // Optionally update state to finalize the resting position and clear animation fields:
+            setHexes((prev) =>
+              prev.map((h) =>
+                h.index === hex.index
+                  ? {
+                      ...h,
+                      animatedValue: null,
+                      animationStartTime: null,
+                      positionInterpolator: null,
+                      startingLocation: null,
+                    }
+                  : h
+              )
+            );
+          }
+        }
+      });
+  
+      animationFrame = requestAnimationFrame(animate);
+    };
+  
+    animationFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [hexes]);
+  
   const collectPatterns = (hex: HexType) => {
     console.log("Collecting patterns Hex");
     console.log(hex);
@@ -272,7 +367,7 @@ const HexGrid: React.FC = () => {
             <g
               key={hex.index}
               ref={(el) => (hexRefs.current[hex.index] = el)}
-              style={{ transition: "transform 0.3s ease" }}
+              //style={{ transition: "transform 0.3s ease" }}
             >
               <polygon
                 points={hexPoints}
