@@ -3,7 +3,6 @@ import { ActionsType, AnimationType, HexPatternsType, HexType, PowerupEffectType
 import { getNeighborCoords } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
 import DirectionSelector from "./components/DirectionSelector";
-import { start } from "repl";
 
 const BOARD_MARGIN = 8;
 const REMOVED_HEXES_MARGIN = 8;
