@@ -42,3 +42,4 @@ export type PowerupType = {
 };
 
 export type PowerupEffectType = "bomb" | "cut" | "turns" | "rotate" | "swap" | "clear" | "unknown";
+export type AnimationType = "shift" | "collapse" | "enter" | "remove" | "powerup";

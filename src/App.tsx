@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import DirectionSelector from "./components/DirectionSelector";
-import { ActionsType, HexPatternsType, HexType, PowerupEffectType } from "./types";
+import { ActionsType, AnimationType, HexPatternsType, HexType, PowerupEffectType } from "./types";
 import { getNeighborCoords } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
+import DirectionSelector from "./components/DirectionSelector";
+import { start } from "repl";
 
 const BOARD_MARGIN = 8;
 const REMOVED_HEXES_MARGIN = 8;
@@ -104,11 +105,11 @@ const HexGrid: React.FC = () => {
           startingLocation: null,
         };
         setHexes((prev) => [...prev, newTile]);
+        startHexAnimation(newTile.index, currentX, currentY, ((length-1)+(grow?0.5:0)+3) * 100, 300, "enter");
         break;
       }
 
-      startHexAnimation(neighborIndex, currentX, currentY, (length+(grow?0.5:0)) * 1500, 800);
-      //moveHex(neighborIndex, currentX, currentY);
+      startHexAnimation(neighborIndex, currentX, currentY, ((length-1)+(grow?0.5:0)) * 100, 300, "shift");
 
       currentX = neighbor.x;
       currentY = neighbor.y;
@@ -129,7 +130,21 @@ const HexGrid: React.FC = () => {
   };
 
   // When initiating an animation (for example, in moveHex or a similar function):
-  const startHexAnimation = (hexIndex: number, targetX: number, targetY: number, offsetMs = 0, durationMs = 300) => {
+  const startHexAnimation = (hexIndex: number, targetX: number, targetY: number, offsetMs = 0, durationMs = 300, animation: AnimationType) => {
+    let positionInterpolator = (t: number) => t * t * (3 - 2 * t); // default: smoothstep easing
+    if (animation === "collapse") {
+      positionInterpolator = (t: number) => t * t * t; // cubic easing
+    } else if (animation === "enter" || animation === "remove") {
+      positionInterpolator = () => 1;
+    }
+
+    let opacityInterpolator = (_: number) => 1;
+    if (animation === "remove") {
+      opacityInterpolator = (t: number) => 1 - t; // reverse linear easing
+    } else if (animation === "enter") {
+      opacityInterpolator = (t: number) => t; // linear easing
+    }
+
     setHexes((prev) =>
       prev.map((hex) =>
         hex.index === hexIndex && hex.restingLocation !== null
@@ -141,10 +156,10 @@ const HexGrid: React.FC = () => {
               restingLocation: { x: targetX, y: targetY },
               // Record animation metadata
               animationStartTime: performance.now(),
-              animationDelay: offsetMs,
+              animationDelay: Math.max(0, offsetMs),
               animationDuration: durationMs,
-              // Use a custom easing function or a library like d3-ease
-              positionInterpolator: (t: number) => t * t * (3 - 2 * t), // example: smoothstep easing
+              positionInterpolator: positionInterpolator,
+              opacityInterpolator: opacityInterpolator,
             }
           : hex
       )
@@ -162,14 +177,14 @@ const HexGrid: React.FC = () => {
         const hex = hexes[i];
         if (hex && hex.animationStartTime !== null && hex.startingLocation) {
           const duration = hex.animationDuration as number;
-          // Optionally, if you want to support an offset, subtract it here:
-          const offset = 0; // or a stored offset value
+          const delay = hex.animationDelay || 0;
           const elapsed = now - hex.animationStartTime;
-          let progress = (elapsed - offset) / duration;
+          let progress = (elapsed - delay) / duration;
           progress = Math.max(0, Math.min(1, progress)); // Clamp progress between 0 and 1
 
           // Apply easing to the progress value.
-          const easedProgress = hex.positionInterpolator ? hex.positionInterpolator(progress) : progress;
+          const positionProgress = hex.positionInterpolator ? hex.positionInterpolator(progress) : progress;
+          const opacityProgress = hex.opacityInterpolator ? hex.opacityInterpolator(progress) : progress;
 
           // Calculate starting grid coordinates.
           const startGridX = hex.startingLocation.x;
@@ -188,11 +203,12 @@ const HexGrid: React.FC = () => {
           const endPixelY = endGridY * ROW_HEIGHT + (endGridX % 2 === 0 ? ROW_HEIGHT / 2 : 0);
 
           // Interpolate between the starting and target pixel positions.
-          const xPos = startPixelX + (endPixelX - startPixelX) * easedProgress;
-          const yPos = startPixelY + (endPixelY - startPixelY) * easedProgress;
+          const xPos = startPixelX + (endPixelX - startPixelX) * positionProgress;
+          const yPos = startPixelY + (endPixelY - startPixelY) * positionProgress;
 
           // Update the transform attribute directly.
           hexRef?.setAttribute("transform", `translate(${xPos}, ${yPos})`);
+          hexRef?.setAttribute("opacity", `${opacityProgress}`);
 
 
           // If the animation has finished:
