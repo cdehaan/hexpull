@@ -4,7 +4,7 @@ export type HexType = {
     restingLocation: {x: number, y: number} | null;
     powerup: PowerupType | null;
     removedIndex: number | null;
-    isQueuedForCollection: boolean;
+    isQueuedForDeletion: boolean;
 
     animationStartTime: number | null;
     animationDelay: number | null;
@@ -24,8 +24,8 @@ export type HexPatternsType = {
     index: number;
     edge: boolean;
     lines: LinePointType[];
-    loop: boolean | null;
-    core: boolean | null;
+    loop: null | boolean | number; // null means we don't know yet. In the end, set to a number for ID or "false"
+    core: null | boolean | number; // null means we don't know yet. Can be set to true or false while finding them, and later numbered to identify distinct touching core groups
 };
 
 export type ActionsType = "pull" | "line" | "ring" | "select" | "collect";

@@ -14,9 +14,13 @@ const HEX_RATIO = 2 / Math.sqrt(3); // Ratio of hex width to height
 const HEX_WIDTH = HEX_HEIGHT * HEX_RATIO; // Width of a hex
 const COLUMN_WIDTH = HEX_WIDTH * 0.75 + HEX_MARGIN; // Width of a column
 const ROW_HEIGHT = HEX_HEIGHT + HEX_MARGIN; // Height of a row
+const SHIFT_DURATION = 300;
+const SHIFT_DELAY = 100;
+const COLLECT_DELAY = 500;
 const opacity = 0.75;
 //const colors = ["red", "blue", "gray", "yellow", "purple"];
-const colors = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];
+const COLORS = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];
+
 
 const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
@@ -27,10 +31,10 @@ const HexGrid: React.FC = () => {
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, (_, i) => ({
       index: i,
       restingLocation: { x: i % NUMBER_OF_COLUMNS, y: Math.floor(i / NUMBER_OF_COLUMNS) },
-      color: Math.floor(Math.random() * colors.length),
+      color: Math.floor(Math.random() * COLORS.length),
       powerup: null,
       removedIndex: null,
-      isQueuedForCollection: false,
+      isQueuedForDeletion: false,
 
       animationStartTime: null,
       animationDelay: null,
@@ -91,10 +95,10 @@ const HexGrid: React.FC = () => {
         const newTile: HexType = {
           index: hexes.length,
           restingLocation: { x: currentX, y: currentY },
-          color: Math.floor(Math.random() * colors.length),
+          color: Math.floor(Math.random() * COLORS.length),
           powerup: null,
           removedIndex: null,
-          isQueuedForCollection: false,
+          isQueuedForDeletion: false,
 
           animationStartTime: null,
           animationDelay: null,
@@ -104,11 +108,11 @@ const HexGrid: React.FC = () => {
           startingLocation: null,
         };
         setHexes((prev) => [...prev, newTile]);
-        startHexAnimation(newTile.index, currentX, currentY, ((length-1)+(grow?0.5:0)+3) * 100, 300, "enter");
+        startHexAnimation(newTile.index, currentX, currentY, ((length-1)+(grow?0.5:0)+3) * SHIFT_DELAY, SHIFT_DURATION, "enter");
         break;
       }
 
-      startHexAnimation(neighborIndex, currentX, currentY, ((length-1)+(grow?0.5:0)) * 100, 300, "shift");
+      startHexAnimation(neighborIndex, currentX, currentY, ((length-1)+(grow?0.5:0)) * SHIFT_DELAY, SHIFT_DURATION, "shift");
 
       currentX = neighbor.x;
       currentY = neighbor.y;
@@ -165,6 +169,7 @@ const HexGrid: React.FC = () => {
     );
   };
 
+  // Animation loop
   useEffect(() => {
     let animationFrame: number;
   
@@ -214,7 +219,9 @@ const HexGrid: React.FC = () => {
           if (progress === 1) {
             // Optionally update state to finalize the resting position and clear animation fields:
             setHexes((prev) =>
-              prev.map((h) =>
+              prev
+              .filter((h) => h.index !== hex.index || h.isQueuedForDeletion === false)
+              .map((h) =>
                 h.index === hex.index
                   ? {
                       ...h,
@@ -247,41 +254,58 @@ const HexGrid: React.FC = () => {
     if (!hexPattern) return;
     console.log(hexPattern);
 
-    if (hexPattern.lines.length === 0 && hexPattern.loop === null && hexPattern.core === null) {
+    if (hexPattern.lines.length === 0 && !hexPattern.loop && !hexPattern.core) {
       console.log("No pattern detected");
       return;
     }
 
     // This hex is part of (at least) one line
-    // Lines collapse into a single hex, and that hex is a powerup
+    // Lines collapse into a single hex, the one that was clicked, and that hex becomes a powerup
     if (hexPattern.lines.length > 0) {
 
       // All the lines this hex is a part of will be removed.
       // Set all the hexes in those lines to be queued for collection
       // Then set the selected line hex as a power-up, which undoes the queue for collection
       const lineIds = hexPattern.lines.map((line) => line.lineId);
-      queueLineHexes(lineIds);
+
+      let hexesToCollapse = lineIdsToHexes(lineIds);
+      hexesToCollapse.filter((hexToCollapse) => hexToCollapse.index !== hex.index); // The clicked hex isn't removed, it will become a powerup, remove it
+      hexesToCollapse.forEach((h) => {
+        if(hex.restingLocation === null) return; // A check for TypeScript, should never happen
+        startHexAnimation(h.index, hex.restingLocation.x, hex.restingLocation.y, COLLECT_DELAY, SHIFT_DURATION, "collapse");
+      });
+      queueHexesForDeletion(hexesToCollapse);
       placePowerup(hex, hexPattern);
     }
 
     // Loops vanish but don't become anything. Any core within a loop becomes a lasting or permanent powerup
     if (hexPattern.loop) {
-      console.log("Loop detected");
+      console.log(`Loop id ${hexPattern.loop} clicked`);
     }
 
     // Cores become lasting or permanent powerups (items at the bottom of the screen)
     if (hexPattern.core) {
-      console.log("Core detected");
+      console.log(`Core id ${hexPattern.core} clicked`);
     }
   };
 
-  // Provided a list of lineIds (from a hex that was selected to be collected), set all hexes in those lines to be queued for collection
-  const queueLineHexes = (lineIds: number[]) => {
-    setHexes((prev) => prev.map((hex) => {
+  const lineIdsToHexes = (lineIds: number[]): HexType[] => {
+    let lineHexes:HexType[] = [];
+    hexes.forEach((hex) => {
       const hexPattern = hexPatterns.find((pattern) => pattern.index === hex.index);
-      if (!hexPattern) return hex;
+      if (!hexPattern) return;
       if (hexPattern.lines.some((line) => lineIds.includes(line.lineId))) {
-        return { ...hex, isQueuedForCollection: true };
+        lineHexes.push(hex);
+      }
+    });
+    return lineHexes;
+  }
+
+  // Provided a list of lineIds (from a hex that was selected to be collected), set all hexes in those lines to be queued for collection
+  const queueHexesForDeletion = (hexesToCollect: HexType[]) => {
+    setHexes((prev) => prev.map((hex) => {
+      if (hexesToCollect.some((h) => h.index === hex.index)) {
+        return { ...hex, isQueuedForDeletion: true };
       }
       return hex;
     }));
@@ -315,7 +339,7 @@ const HexGrid: React.FC = () => {
         permanentIndex: null,
       },
     };
-    setHexes((prev) => prev.map((newHex) => (newHex.index === hex.index ? { ...newHex, powerup: powerup, isQueuedForCollection: false } : newHex)));
+    setHexes((prev) => prev.map((newHex) => (newHex.index === hex.index ? { ...newHex, powerup: powerup, isQueuedForDeletion: false } : newHex)));
   };
 
   useEffect(() => {
@@ -368,7 +392,7 @@ const HexGrid: React.FC = () => {
           const isLoop = hexPattern && hexPattern.loop;
           const isCore = hexPattern && hexPattern.core;
           const isPowerup = hex.powerup !== null;
-          const isQueued = hex.isQueuedForCollection;
+          const isQueued = hex.isQueuedForDeletion;
           const strokeOpacity = isEdge ? 0.8 : 1;
           const displayIndex = true;
 
@@ -384,8 +408,8 @@ const HexGrid: React.FC = () => {
               <polygon
                 points={hexPoints}
                 style={{
-                  fill: colors[hex.color],
-                  stroke: (isLine && isCore) ? `rgba(128,255,128,${strokeOpacity})` : isLine ? `rgba(0,255,0,${strokeOpacity})` : isCore ? `rgba(255,255,255,${strokeOpacity})` : isLoop ? colors[hex.color] : `rgba(0,0,0,${strokeOpacity})`,
+                  fill: COLORS[hex.color],
+                  stroke: (isLine && isCore) ? `rgba(128,255,128,${strokeOpacity})` : isLine ? `rgba(0,255,0,${strokeOpacity})` : isCore ? `rgba(255,255,255,${strokeOpacity})` : isLoop ? COLORS[hex.color] : `rgba(0,0,0,${strokeOpacity})`,
                   strokeWidth: isCore ? "10px" : `${lineCount*3}px`,
                   cursor: "pointer",
                   opacity: isQueued ? 0.5 : 1,
@@ -414,7 +438,7 @@ const HexGrid: React.FC = () => {
               ref={(el) => (hexRefs.current[hex.index] = el)}
               points={`0,${HEX_HEIGHT / 2} ${HEX_WIDTH / 4},0 ${(HEX_WIDTH * 3) / 4},0 ${HEX_WIDTH},${HEX_HEIGHT / 2} ${(HEX_WIDTH * 3) / 4},${HEX_HEIGHT} ${HEX_WIDTH / 4},${HEX_HEIGHT}`}
               style={{
-                fill: colors[hex.color],
+                fill: COLORS[hex.color],
                 stroke: "black",
                 strokeWidth: "1px",
                 cursor: "pointer",
