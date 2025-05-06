@@ -17,9 +17,9 @@ const ROW_HEIGHT = HEX_HEIGHT + HEX_MARGIN; // Height of a row
 const SHIFT_DURATION = 300;
 const SHIFT_DELAY = 100;
 const COLLECT_DELAY = 500;
-const opacity = 0.75;
+const OPACITY = 0.75;
 //const colors = ["red", "blue", "gray", "yellow", "purple"];
-const COLORS = [`rgba(255,0,0,${opacity})`, `rgba(0,0,255,${opacity})`, `rgba(128,128,128,${opacity})`, `rgba(255,255,0,${opacity})`, `rgba(64,0,128,${opacity})`];
+const COLORS = [`rgba(255,0,0,${OPACITY})`, `rgba(0,0,255,${OPACITY})`, `rgba(128,128,128,${OPACITY})`, `rgba(255,255,0,${OPACITY})`, `rgba(64,0,128,${OPACITY})`];
 
 
 const HexGrid: React.FC = () => {
