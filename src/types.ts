@@ -1,17 +1,18 @@
 export type HexType = {
     index: number;
     color: number;
-    restingLocation: {x: number, y: number} | null;
     powerup: PowerupType | null;
-    removedIndex: number | null;
+
+    restingLocation: {x: number, y: number} | null;
+    startingLocation: {x: number, y: number} | null;
     isQueuedForDeletion: boolean;
+    removedIndex: number | null;
 
     animationStartTime: number | null;
     animationDelay: number | null;
     animationDuration: number | null;
     opacityInterpolator: ((progress: number) => number) | null;
     positionInterpolator: ((progress: number) => number) | null;
-    startingLocation: {x: number, y: number} | null;
 };
 
 export type LinePointType = {
