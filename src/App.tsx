@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ActionsType, AnimationType, HexPatternsType, HexType, PowerupEffectType } from "./types";
 import { getNeighborCoords } from "./utils/NeighborUtils";
 import { detectLinesAndLoops } from "./utils/detectLinesAndLoops";
@@ -26,6 +26,7 @@ const HexGrid: React.FC = () => {
   const [initialPullDirection, setInitialPullDirection] = useState(1);
   const [isClockwise, setIsClockwise] = useState<boolean | null>(true); // null = always pull in the same (initial) direction, no rotation
   const [tapAction, setTapAction] = useState<ActionsType>("pull");
+  const [collectHexPatternsSnapshot, setCollectHexPatternsSnapshot] = useState<HexPatternsType[] | null>(null);
 
   const [hexes, setHexes] = useState<HexType[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, (_, i) => ({
@@ -45,7 +46,24 @@ const HexGrid: React.FC = () => {
     }))
   );
 
-  let hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
+  const hexPatterns: HexPatternsType[] = useMemo(() => {
+    if (tapAction === "collect" && collectHexPatternsSnapshot) {
+      return collectHexPatternsSnapshot;
+    }
+    return detectLinesAndLoops(hexes);
+  }, [hexes, tapAction, collectHexPatternsSnapshot]);
+
+  useEffect(() => {
+    if (tapAction === "collect" && collectHexPatternsSnapshot === null) {
+      setCollectHexPatternsSnapshot(detectLinesAndLoops(hexes));
+      return;
+    }
+
+    if (tapAction !== "collect" && collectHexPatternsSnapshot !== null) {
+      setCollectHexPatternsSnapshot(null);
+    }
+  }, [tapAction, collectHexPatternsSnapshot, hexes]);
+
   if (tapAction === "collect") {
     console.log("Current hex patterns:");
     console.log(hexPatterns);
@@ -287,14 +305,69 @@ const HexGrid: React.FC = () => {
     }
 
     // Loops vanish but don't become anything. Any core within a loop becomes a lasting or permanent powerup
-    if (hexPattern.loop) {
-      console.log(`Loop id ${hexPattern.loop} clicked`);
+    const loopGroupId = typeof hexPattern.loop === "number" ? hexPattern.loop : null;
+    const coreGroupId = typeof hexPattern.core === "number" ? hexPattern.core : null;
+    const collectLoopGroupId = loopGroupId ?? coreGroupId;
+
+    if (collectLoopGroupId !== null) {
+      collectLoopGroup(collectLoopGroupId);
     }
 
     // Cores become lasting or permanent powerups (items at the bottom of the screen)
     if (hexPattern.core) {
       console.log(`Core id ${hexPattern.core} clicked`);
     }
+  };
+
+  const collectLoopGroup = (groupId: number) => {
+    const patternsInGroup = hexPatterns.filter((pattern) => pattern.loop === groupId || pattern.core === groupId);
+    const loopHexes = patternsInGroup
+      .filter((pattern) => pattern.loop === groupId)
+      .map((pattern) => hexes.find((h) => h.index === pattern.index))
+      .filter((h): h is HexType => h !== undefined && h.removedIndex === null && h.restingLocation !== null);
+
+    const coreHexes = patternsInGroup
+      .filter((pattern) => pattern.core === groupId)
+      .map((pattern) => hexes.find((h) => h.index === pattern.index))
+      .filter((h): h is HexType => h !== undefined && h.removedIndex === null && h.restingLocation !== null);
+
+    if (loopHexes.length === 0 || coreHexes.length === 0) return;
+
+    loopHexes.forEach((loopHex) => {
+      if (loopHex.restingLocation === null) return;
+
+      const adjacentCoreHexes = [1, 2, 3, 4, 5, 6]
+        .map((direction) => getNeighborCoords(loopHex.restingLocation!.x, loopHex.restingLocation!.y, direction))
+        .filter((coords): coords is { x: number; y: number } => coords !== null)
+        .map((coords) => {
+          const neighborIndex = findHexIndex(coords.x, coords.y);
+          if (neighborIndex === null) return null;
+          const neighborHex = hexes.find((h) => h.index === neighborIndex);
+          if (!neighborHex || neighborHex.restingLocation === null || neighborHex.removedIndex !== null) return null;
+          const neighborPattern = hexPatterns.find((pattern) => pattern.index === neighborHex.index);
+          if (!neighborPattern || neighborPattern.core !== groupId) return null;
+          return neighborHex;
+        })
+        .filter((h): h is HexType => h !== null);
+
+      const targetCoreHexes = adjacentCoreHexes.length > 0 ? adjacentCoreHexes : coreHexes;
+      const targetCoreHex = targetCoreHexes[Math.floor(Math.random() * targetCoreHexes.length)];
+      if (!targetCoreHex || targetCoreHex.restingLocation === null) return;
+
+      startHexAnimation(
+        loopHex.index,
+        targetCoreHex.restingLocation.x,
+        targetCoreHex.restingLocation.y,
+        COLLECT_DELAY,
+        SHIFT_DURATION,
+        "collapse"
+      );
+    });
+
+    queueHexesForDeletion(loopHexes);
+
+    const corePowerupLevel = loopHexes.length - 5;
+    placeCorePowerups(coreHexes, corePowerupLevel);
   };
 
   const lineIdsToHexes = (lineIds: number[]): HexType[] => {
@@ -319,27 +392,22 @@ const HexGrid: React.FC = () => {
     }));
   }
 
-  // Place a powerup on the hex that is selected in a line
-  // The powerup effect is based on the color of the line
-  // The powerup level is based on the length of the longest line, plus the number of lines
-  const placePowerup = (hex: HexType, hexPattern: HexPatternsType) => {
-    let powerupEffect:PowerupEffectType;
-    switch (hex.color) {
-      case 0:  powerupEffect = "bomb";   break;
-      case 1:  powerupEffect = "cut";    break;
-      case 2:  powerupEffect = "turns";  break;
-      case 3:  powerupEffect = "rotate"; break;
-      case 4:  powerupEffect = "swap";   break;
-      case 5:  powerupEffect = "clear";  break;
-      default: powerupEffect = "unknown";
+  const colorToPowerupEffect = (color: number): PowerupEffectType => {
+    switch (color) {
+      case 0: return "bomb";
+      case 1: return "cut";
+      case 2: return "turns";
+      case 3: return "rotate";
+      case 4: return "swap";
+      case 5: return "clear";
+      default: return "unknown";
     }
+  };
 
-    // One line, length 5, is the lowest level powerup, so subtract 4 so the powerups start from level 1
-    const powerupLevel = Math.max(...hexPattern.lines.map((line) => line.length)) + hexPattern.lines.length - 4;
-
+  const setPowerupOnHex = (hexIndex: number, color: number, level: number) => {
     const powerup = {
-      effect: powerupEffect,
-      level: powerupLevel,
+      effect: colorToPowerupEffect(color),
+      level,
       location: {
         isOnBoard: false,
         consumableIndex: null,
@@ -347,7 +415,23 @@ const HexGrid: React.FC = () => {
         permanentIndex: null,
       },
     };
-    setHexes((prev) => prev.map((newHex) => (newHex.index === hex.index ? { ...newHex, powerup: powerup, isQueuedForDeletion: false } : newHex)));
+
+    setHexes((prev) => prev.map((newHex) => (newHex.index === hexIndex ? { ...newHex, powerup, isQueuedForDeletion: false } : newHex)));
+  };
+
+  const placeCorePowerups = (coreHexes: HexType[], level: number) => {
+    coreHexes.forEach((coreHex) => {
+      setPowerupOnHex(coreHex.index, coreHex.color, level);
+    });
+  };
+
+  // Place a powerup on the hex that is selected in a line
+  // The powerup effect is based on the color of the line
+  // The powerup level is based on the length of the longest line, plus the number of lines
+  const placePowerup = (hex: HexType, hexPattern: HexPatternsType) => {
+    // One line, length 5, is the lowest level powerup, so subtract 4 so the powerups start from level 1
+    const powerupLevel = Math.max(...hexPattern.lines.map((line) => line.length)) + hexPattern.lines.length - 4;
+    setPowerupOnHex(hex.index, hex.color, powerupLevel);
   };
 
   useEffect(() => {
@@ -369,7 +453,6 @@ const HexGrid: React.FC = () => {
       }
     });
 
-    hexPatterns = detectLinesAndLoops(hexes);
   }, [hexes]);
 
   const totalWidth = (2 + NUMBER_OF_COLUMNS) * COLUMN_WIDTH; // +2 is for the stack of used tiles on the right, it's 0.5 more than it needs to be
