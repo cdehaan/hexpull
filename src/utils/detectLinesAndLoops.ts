@@ -208,6 +208,63 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
     }
   }
 
+  // If loop hexes touch multiple core groups, those groups should share one id.
+  // Merge core ids using union-find based on overlap in loopIdArrays.
+  const coreIds = new Set<number>();
+  detectedHexPatterns.forEach((hexPattern) => {
+    if (typeof hexPattern.core === "number") coreIds.add(hexPattern.core);
+  });
+
+  const parent = new Map<number, number>();
+  coreIds.forEach((id) => parent.set(id, id));
+
+  const find = (id: number): number => {
+    const parentId = parent.get(id);
+    if (parentId === undefined || parentId === id) return id;
+    const root = find(parentId);
+    parent.set(id, root);
+    return root;
+  };
+
+  const union = (a: number, b: number) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA === rootB) return;
+    if (rootA < rootB) {
+      parent.set(rootB, rootA);
+    } else {
+      parent.set(rootA, rootB);
+    }
+  };
+
+  loopIdArrays.forEach(({ loop }) => {
+    const ids = Array.from(loop);
+    if (ids.length < 2) return;
+    const first = ids[0];
+    ids.slice(1).forEach((id) => union(first, id));
+  });
+
+  const normalizeCoreId = (id: number): number => find(id);
+
+  detectedHexPatterns.forEach((hexPattern) => {
+    if (typeof hexPattern.core === "number") {
+      hexPattern.core = normalizeCoreId(hexPattern.core);
+    }
+  });
+
+  loopIdArrays.forEach((loopIdArray) => {
+    const normalizedIds = Array.from(loopIdArray.loop).map(normalizeCoreId);
+    loopIdArray.loop = new Set(normalizedIds);
+  });
+
+  // Assign loop ids from the collected loop sets.
+  loopIdArrays.forEach(({ index, loop }) => {
+    if (loop.size === 0) return;
+    const pattern = detectedHexPatterns.find((hexPattern) => hexPattern.index === index);
+    if (!pattern) return;
+    pattern.loop = Math.min(...Array.from(loop));
+  });
+
   // If a hex pattern isn't given a loop id, it's not part of a loop, so set it to false
   // Previously, it was set to null, meaning it wasn't known yet
   detectedHexPatterns.forEach((hexPattern) => {

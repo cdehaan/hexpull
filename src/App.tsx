@@ -46,6 +46,10 @@ const HexGrid: React.FC = () => {
   );
 
   let hexPatterns:HexPatternsType[] = detectLinesAndLoops(hexes);
+  if (tapAction === "collect") {
+    console.log("Current hex patterns:");
+    console.log(hexPatterns);
+  }
 
   const hexRefs = useRef<SVGGElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
@@ -251,13 +255,17 @@ const HexGrid: React.FC = () => {
     if(hex.restingLocation === null || hex.removedIndex !== null) return; // could be a removed hex, don't collect patterns from those (should never happen anyway)
 
     const hexPattern = hexPatterns.find((pattern) => pattern.index === hex.index);
-    if (!hexPattern) return;
-    console.log(hexPattern);
+    if (!hexPattern) {
+      console.log("Found pattern is falsy");
+      return;
+    }
 
     if (hexPattern.lines.length === 0 && !hexPattern.loop && !hexPattern.core) {
       console.log("No pattern detected");
       return;
     }
+
+    console.log(hexPattern);
 
     // This hex is part of (at least) one line
     // Lines collapse into a single hex, the one that was clicked, and that hex becomes a powerup
@@ -269,7 +277,7 @@ const HexGrid: React.FC = () => {
       const lineIds = hexPattern.lines.map((line) => line.lineId);
 
       let hexesToCollapse = lineIdsToHexes(lineIds);
-      hexesToCollapse.filter((hexToCollapse) => hexToCollapse.index !== hex.index); // The clicked hex isn't removed, it will become a powerup, remove it
+      hexesToCollapse = hexesToCollapse.filter((hexToCollapse) => hexToCollapse.index !== hex.index); // The clicked hex isn't removed, it will become a powerup, remove it
       hexesToCollapse.forEach((h) => {
         if(hex.restingLocation === null) return; // A check for TypeScript, should never happen
         startHexAnimation(h.index, hex.restingLocation.x, hex.restingLocation.y, COLLECT_DELAY, SHIFT_DURATION, "collapse");
@@ -326,8 +334,8 @@ const HexGrid: React.FC = () => {
       default: powerupEffect = "unknown";
     }
 
-    // One line, length 5, is the lowest level powerup, so subtract 5 so the powerups start from level 1
-    const powerupLevel = Math.max(...hexPattern.lines.map((line) => line.length)) + hexPattern.lines.length - 5;
+    // One line, length 5, is the lowest level powerup, so subtract 4 so the powerups start from level 1
+    const powerupLevel = Math.max(...hexPattern.lines.map((line) => line.length)) + hexPattern.lines.length - 4;
 
     const powerup = {
       effect: powerupEffect,
