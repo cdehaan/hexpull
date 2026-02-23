@@ -72,10 +72,66 @@ const HexGrid: React.FC = () => {
   const hexRefs = useRef<SVGGElement[] | null[]>(
     Array.from({ length: NUMBER_OF_COLUMNS * NUMBER_OF_ROWS }, () => null)
   );
+  const nextHexIndexRef = useRef(NUMBER_OF_COLUMNS * NUMBER_OF_ROWS);
+
+  const getNextHexIndex = (currentHexes: HexType[]): number => {
+    return currentHexes.reduce((maxIndex, currentHex) => Math.max(maxIndex, currentHex.index), -1) + 1;
+  };
+
+  const allocateHexIndex = (currentHexes: HexType[]): number => {
+    nextHexIndexRef.current = Math.max(nextHexIndexRef.current, getNextHexIndex(currentHexes));
+    const newIndex = nextHexIndexRef.current;
+    nextHexIndexRef.current += 1;
+    return newIndex;
+  };
+
+  const createBoardHex = (index: number, x: number, y: number): HexType => ({
+    index,
+    restingLocation: { x, y },
+    color: Math.floor(Math.random() * COLORS.length),
+    powerup: null,
+    removedIndex: null,
+    isQueuedForDeletion: false,
+
+    animationStartTime: null,
+    animationDelay: null,
+    animationDuration: null,
+    opacityInterpolator: null,
+    positionInterpolator: null,
+    startingLocation: null,
+  });
+
+  const fillEmptyBoardSpaces = (currentHexes: HexType[]): HexType[] => {
+    const occupiedLocations = new Set(
+      currentHexes
+        .filter((hex) => hex.removedIndex === null && hex.restingLocation !== null)
+        .map((hex) => `${hex.restingLocation!.x},${hex.restingLocation!.y}`)
+    );
+
+    const refilledHexes: HexType[] = [];
+    for (let y = 0; y < NUMBER_OF_ROWS; y++) {
+      for (let x = 0; x < NUMBER_OF_COLUMNS; x++) {
+        const locationKey = `${x},${y}`;
+        if (occupiedLocations.has(locationKey)) continue;
+
+        refilledHexes.push(createBoardHex(allocateHexIndex(currentHexes), x, y));
+      }
+    }
+
+    return refilledHexes.length > 0 ? [...currentHexes, ...refilledHexes] : currentHexes;
+  };
+
+  const handleTapActionChange = (action: ActionsType) => {
+    if (action === "pull") {
+      setHexes((prev) => fillEmptyBoardSpaces(prev));
+    }
+
+    setTapAction(action);
+  };
 
   const findHexIndex = (x: number, y: number): number | null => {
-    const index = hexes.findIndex((loc) => loc.restingLocation && loc.restingLocation.x === x && loc.restingLocation.y === y);
-    return index !== -1 ? index : null;
+    const foundHex = hexes.find((loc) => loc.restingLocation && loc.restingLocation.x === x && loc.restingLocation.y === y);
+    return foundHex ? foundHex.index : null;
   };
 
   const handleHexClick = (hex: HexType) => {
@@ -114,23 +170,10 @@ const HexGrid: React.FC = () => {
 
       const neighborIndex = findHexIndex(neighbor.x, neighbor.y);
       if (neighborIndex === null) {
-        const newTile: HexType = {
-          index: hexes.length,
-          restingLocation: { x: currentX, y: currentY },
-          color: Math.floor(Math.random() * COLORS.length),
-          powerup: null,
-          removedIndex: null,
-          isQueuedForDeletion: false,
-
-          animationStartTime: null,
-          animationDelay: null,
-          animationDuration: null,
-          opacityInterpolator: null,
-          positionInterpolator: null,
-          startingLocation: null,
-        };
+        const newTileIndex = allocateHexIndex(hexes);
+        const newTile = createBoardHex(newTileIndex, currentX, currentY);
         setHexes((prev) => [...prev, newTile]);
-        startHexAnimation(newTile.index, currentX, currentY, ((length-1)+(grow?0.5:0)+3) * SHIFT_DELAY, SHIFT_DURATION, "enter");
+        startHexAnimation(newTileIndex, currentX, currentY, ((length-1)+(grow?0.5:0)+3) * SHIFT_DELAY, SHIFT_DURATION, "enter");
         break;
       }
 
@@ -466,7 +509,7 @@ const HexGrid: React.FC = () => {
   return (
     <>
       <div style={{ minHeight: "3rem" }}>
-        <DirectionSelector initialPullDirection={initialPullDirection} setInitialPullDirection={setInitialPullDirection} isClockwise={isClockwise} setIsClockwise={setIsClockwise} tapAction={tapAction} setTapAction={setTapAction} />
+        <DirectionSelector initialPullDirection={initialPullDirection} setInitialPullDirection={setInitialPullDirection} isClockwise={isClockwise} setIsClockwise={setIsClockwise} tapAction={tapAction} setTapAction={handleTapActionChange} />
       </div>
       <svg
         className="hex-grid"
