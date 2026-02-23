@@ -244,17 +244,40 @@ export const detectLinesAndLoops = (hexes: HexType[]) => {
     ids.slice(1).forEach((id) => union(first, id));
   });
 
-  const normalizeCoreId = (id: number): number => find(id);
-
   detectedHexPatterns.forEach((hexPattern) => {
     if (typeof hexPattern.core === "number") {
-      hexPattern.core = normalizeCoreId(hexPattern.core);
+      hexPattern.core = find(hexPattern.core);
     }
   });
 
   loopIdArrays.forEach((loopIdArray) => {
-    const normalizedIds = Array.from(loopIdArray.loop).map(normalizeCoreId);
+    const normalizedIds = Array.from(loopIdArray.loop).map(find);
     loopIdArray.loop = new Set(normalizedIds);
+  });
+
+  // Reindex core ids to contiguous values (1..N) so no ids are skipped after merges.
+  const normalizedCoreIds = Array.from(
+    new Set(
+      detectedHexPatterns
+        .map((hexPattern) => hexPattern.core)
+        .filter((core): core is number => typeof core === "number")
+    )
+  ).sort((a, b) => a - b);
+
+  const compactCoreIdMap = new Map<number, number>();
+  normalizedCoreIds.forEach((id, index) => compactCoreIdMap.set(id, index + 1));
+
+  detectedHexPatterns.forEach((hexPattern) => {
+    if (typeof hexPattern.core !== "number") return;
+    const compactId = compactCoreIdMap.get(hexPattern.core);
+    if (compactId !== undefined) hexPattern.core = compactId;
+  });
+
+  loopIdArrays.forEach((loopIdArray) => {
+    const compactIds = Array.from(loopIdArray.loop)
+      .map((id) => compactCoreIdMap.get(id))
+      .filter((id): id is number => id !== undefined);
+    loopIdArray.loop = new Set(compactIds);
   });
 
   // Assign loop ids from the collected loop sets.
