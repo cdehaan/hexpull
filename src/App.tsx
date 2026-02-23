@@ -199,9 +199,9 @@ const HexGrid: React.FC = () => {
       const now = performance.now();
   
       // Update only hexes that are currently animating.
-      hexRefs.current.forEach((hexRef, i) => {
-        const hex = hexes[i];
-        if (hex && hex.animationStartTime !== null && hex.startingLocation) {
+      hexes.forEach((hex) => {
+        const hexRef = hexRefs.current[hex.index];
+        if (hex.animationStartTime !== null && hex.startingLocation) {
           const duration = hex.animationDuration as number;
           const delay = hex.animationDelay || 0;
           const elapsed = now - hex.animationStartTime;
